@@ -3,7 +3,8 @@
 #include <thread>
 
 #include "parser.hpp"
-#include "hello.h"
+#include "sender.cpp"
+#include "receiver.cpp"
 #include <signal.h>
 
 
@@ -33,7 +34,6 @@ int main(int argc, char **argv) {
   Parser parser(argc, argv);
   parser.parse();
 
-  hello();
   std::cout << std::endl;
 
   std::cout << "My PID: " << getpid() << "\n";
