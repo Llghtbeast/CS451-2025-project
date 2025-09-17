@@ -3,17 +3,29 @@
 #include <fstream>
 #include <string>
 #include <thread>
+#include <memory>
 
 #include "parser.hpp"
 #include "sender.cpp"
 #include "receiver.cpp"
 #include <signal.h>
 
+static Receiver* p_receiver = nullptr;
+static Sender* p_sender = nullptr;
 
 static void stop(int) {
   // reset signal handlers to default
   signal(SIGTERM, SIG_DFL);
   signal(SIGINT, SIG_DFL);
+
+  // Clean up resources
+  std::cout << "Cleaning up resources";
+  if (p_receiver != nullptr) {
+    p_receiver->terminate();
+  }
+  if (p_sender != nullptr) {
+    p_sender->terminate();
+  }
 
   // immediately stop network packet processing
   std::cout << "Immediately stopping network packet processing.\n";
@@ -96,12 +108,14 @@ int main(int argc, char **argv) {
   // Create senders and receiver
   if (parser.id() == recv_id) {
     Receiver receiver(parser.outputPath(), hosts.at(recv_id-1), hosts);
+    p_receiver = &receiver;
     std::cout << "Receiver created and waiting to receive\n";
     while (true) {
       receiver.receive();
     }
   } else {
-    Sender sender(total_m, parser.outputPath(), hosts.at(parser.id()), hosts.at(recv_id-1));
+    Sender sender(total_m, parser.outputPath(), hosts.at(parser.id()-1), hosts.at(recv_id-1));
+    p_sender = &sender;
     std::cout << "Sender created and starting to send\n";    
     for (size_t i = 0; i < total_m; i++) {
       sender.send();

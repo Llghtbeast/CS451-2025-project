@@ -10,12 +10,9 @@
 class Sender {
 public:
   Sender(uint32_t total_mes, const char * outputPath, Parser::Host sender, Parser::Host receiver)
-    : id{sender.id}, total_m{total_mes} {
+    : id{sender.id}, total_m{total_mes}, output(outputPath) {
       // Init message sequence number
       m_seq = 0;
-
-      // Init output file
-      output = std::ofstream(outputPath);
 
       // Create IPv6 UDP socket 
       send_socket = socket(AF_INET, SOCK_DGRAM, 0);

@@ -11,9 +11,7 @@
 class Receiver {
 public:
   Receiver(const char * outputPath, Parser::Host receiver, std::vector<Parser::Host> hosts)
-    : id{receiver.id} {
-      // Init output file
-      output = std::ofstream(outputPath);
+    : id{receiver.id}, output(outputPath) {
 
       // Create sender id map
       for (Parser::Host host: hosts) {
