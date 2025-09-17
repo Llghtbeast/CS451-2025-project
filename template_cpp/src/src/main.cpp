@@ -1,5 +1,7 @@
 #include <chrono>
 #include <iostream>
+#include <fstream>
+#include <string>
 #include <thread>
 
 #include "parser.hpp"
@@ -63,9 +65,48 @@ int main(int argc, char **argv) {
   std::cout << "===============\n";
   std::cout << parser.configPath() << "\n\n";
 
+
   std::cout << "Doing some initialization...\n\n";
 
+  // Open config file
+  std::ifstream configFile(parser.configPath());
+  if (!configFile.is_open()) {
+    std::ostringstream os;
+    os << "`" << parser.configPath() << "` does not exist";
+    throw std::invalid_argument(os.str());
+  }
+
+  // Extract first line of config file
+  std::string config;
+  if (!std::getline(configFile, config)) {
+    std::ostringstream os;
+    os << "`" << parser.configPath() << "` file empty or error handling file";
+    throw std::invalid_argument(os.str());
+  }
+
+  // Extract total number of messages sent by senders and id of receiver
+  std::istringstream iss(config);
+  uint32_t total_m, recv_id;
+  if (!(iss >> total_m >> recv_id)) {
+    throw std::invalid_argument("Error parsing integers from config file");
+  }
+  
   std::cout << "Broadcasting and delivering messages...\n\n";
+
+  // Create senders and receiver
+  if (parser.id() == recv_id) {
+    Receiver receiver(parser.outputPath(), hosts.at(recv_id-1), hosts);
+    std::cout << "Receiver created and waiting to receive\n";
+    while (true) {
+      receiver.receive();
+    }
+  } else {
+    Sender sender(total_m, parser.outputPath(), hosts.at(parser.id()), hosts.at(recv_id-1));
+    std::cout << "Sender created and starting to send\n";    
+    for (size_t i = 0; i < total_m; i++) {
+      sender.send();
+    }
+  }
 
   // After a process finishes broadcasting,
   // it waits forever for the delivery of messages.

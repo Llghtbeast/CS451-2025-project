@@ -9,8 +9,8 @@
 
 class Sender {
 public:
-  Sender(uint32_t total_mes, const char * outputPath, Parser::Host &sender, Parser::Host &receiver)
-    : id{sender.id}, total_m{total_m} {
+  Sender(uint32_t total_mes, const char * outputPath, Parser::Host sender, Parser::Host receiver)
+    : id{sender.id}, total_m{total_mes} {
       // Init message sequence number
       m_seq = 0;
 
@@ -34,8 +34,10 @@ public:
       // Bind the socket with the server address
       if (bind(send_socket, reinterpret_cast<const sockaddr*>(&send_addr), sizeof(send_addr)) < 0) {
         std::ostringstream os;
-        os << "Failed to bind socket to address " << sender.ipReadable() << ":" << sender.portReadable();
+        os << "Failed to bind socket to address " << sender.ipReadable() << ":" << sender.portReadable() << "\n";
         throw std::runtime_error(os.str());
+      } else {
+        std::cout << "socket bound to address " << receiver.ipReadable() << ":" << receiver.portReadable() << "\n";
       }
 
       // Set up receiver address
@@ -55,7 +57,7 @@ public:
     memcpy(buffer.data(), &network_byte_order_m_seq, sizeof(uint32_t));
   
     // Write send message to file
-    output << "b " + m_seq;
+    output << "b " << m_seq << "\n";
 
     // Send message to receiver
     sendto(send_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<const sockaddr *>(&recv_addr), sizeof(recv_addr));
@@ -63,13 +65,13 @@ public:
 
   void terminate() {
     // Print termination to file and close resources
-    output << "Process " << id << " terminated.";
+    output << "Process " << id << " terminated.\n";
     output.close();
     close(send_socket);
   }
 
 private:
-  uint32_t id;
+  long unsigned int id;
 
   uint32_t m_seq;
   const uint32_t total_m;
