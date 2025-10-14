@@ -7,11 +7,12 @@
 #include <unordered_map>
 
 #include <parser.hpp>
+#include "node.cpp"
 
-class Receiver {
+class Receiver: public Node {
 public:
   Receiver(const char * outputPath, Parser::Host receiver, std::vector<Parser::Host> hosts)
-    : id{receiver.id}, output(outputPath) {
+    : Node(receiver, outputPath) {
 
       // Create sender id map
       for (Parser::Host host: hosts) {
@@ -22,29 +23,6 @@ public:
           sender_id[sender_ip_and_port.str()] = host.id;
         }
       }
-
-      // Create IPv6 UDP socket 
-      recv_socket = socket(AF_INET, SOCK_DGRAM, 0);
-      if (recv_socket < 0) {
-        std::ostringstream os;
-        os << "Failed to create socket for host " << receiver.ipReadable() << ":" << receiver.portReadable();
-        throw std::runtime_error(os.str());
-      }
-
-      // Set up receiver address
-      memset(&recv_addr, 0, sizeof(recv_addr));
-      recv_addr.sin_family = AF_INET;
-      recv_addr.sin_port = htons(receiver.port);
-      recv_addr.sin_addr.s_addr = receiver.ip;
-
-      // Bind the socket with the recevier address
-      if (bind(recv_socket, reinterpret_cast<const sockaddr*>(&recv_addr), sizeof(recv_addr)) < 0) {
-        std::ostringstream os;
-        os << "Failed to bind socket to address " << receiver.ipReadable() << ":" << receiver.portReadable() << "\n";
-        throw std::runtime_error(os.str());
-      } else {
-        std::cout << "socket bound to address " << receiver.ipReadable() << ":" << receiver.portReadable() << "\n";
-      }
     }
 
   void receive() {
@@ -54,7 +32,7 @@ public:
     
     std::cout << "waiting for message\n";
 
-    if (recvfrom(recv_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
+    if (recvfrom(node_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
       throw std::runtime_error("recvfrom failed ");
     }
 
@@ -72,20 +50,6 @@ public:
     return;
   }
 
-  void terminate() {
-    // Print termination to file and close resources
-    output << "Process " << id << " terminated.\n";
-    output.close();
-    close(recv_socket);
-  }
-
 private:
-  long unsigned int id;
-
-  std::ofstream output;
-
   std::unordered_map<std::string, long unsigned int> sender_id;
-
-  int recv_socket;
-  sockaddr_in recv_addr;
 };
