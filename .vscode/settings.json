@@ -58,5 +58,9 @@
       "thread": "cpp",
       "typeinfo": "cpp",
       "variant": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "/home/goldfish/Documents/EPFL/master/DisAlg/CS451-2025-project/template_cpp",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
 }
