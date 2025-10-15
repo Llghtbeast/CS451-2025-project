@@ -6,11 +6,10 @@
 #include <memory>
 
 #include "parser.hpp"
-#include "sender.cpp"
-#include "receiver.cpp"
+#include "node.hpp"
 #include <signal.h>
 
-static Node* node = nullptr;
+static Node* p_node = nullptr;
 
 static void stop(int) {
   // reset signal handlers to default
@@ -19,14 +18,14 @@ static void stop(int) {
 
   // Clean up resources
   std::cout << "Cleaning up resources.\n";
-  node->cleanup();
+  p_node->cleanup();
 
   // immediately stop network packet processing
   std::cout << "Immediately stopping network packet processing.\n";
 
   // write/flush output file if necessary
   std::cout << "Writing output.\n";
-  node->flushToOutput();
+  p_node->flushToOutput();
 
   // exit directly from signal handler
   exit(0);
@@ -101,21 +100,19 @@ int main(int argc, char **argv) {
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   // Create senders and receiver
-  if (parser.id() == recv_id) {
-    Receiver receiver(parser.outputPath(), hosts.at(recv_id-1), hosts);
-    node = &receiver;
+  Node node(hosts, parser.id(), recv_id, parser.outputPath());
+  p_node = &node;
 
+  if (parser.id() == recv_id) {
     std::cout << "Receiver created and waiting to receive\n";
     while (true) {
-      receiver.receive();
+      node.receive();
     }
   } else {
-    Sender sender(total_m, parser.outputPath(), hosts.at(parser.id()-1), hosts.at(recv_id-1));
-    node = &sender;
     std::cout << "Sender created and starting to send\n";    
 
     for (size_t i = 0; i < total_m; i++) {
-      sender.send();
+      node.send();
     }
   }
 

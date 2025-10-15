@@ -1,18 +1,9 @@
-#include <sys/socket.h>
-#include <string.h>
-#include <cstring>
-#include <vector>
-#include <iostream>
-#include <fstream>
-#include <unordered_map>
-#include <netinet/in.h>
-#include <unistd.h>
+#include "node.hpp"
 
-#include <parser.hpp>
+Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath)
+  : id(id), output(outputPath) {
+    Parser::Host node = nodes[id - 1];
 
-class Node {
-public:  
-  Node(Parser::Host node, std::string outputPath): id(node.id), output(outputPath) {
     // Create IPv6 UDP socket 
     node_socket = socket(AF_INET, SOCK_DGRAM, 0);
     if (node_socket < 0) {
@@ -35,25 +26,75 @@ public:
     } else {
       std::cout << "Socket bound to address " << node.ipReadable() << ":" << node.portReadable() << "\n";
     }
+
+    // Init message sequence number
+    m_seq = 0;
+
+    // Set up receiver address
+    Parser::Host receiver = nodes[receiver_id - 1];
+    memset(&recv_addr, 0, sizeof(recv_addr));
+    recv_addr.sin_family = AF_INET;
+    recv_addr.sin_port = htons(receiver.port);
+    recv_addr.sin_addr.s_addr = receiver.ip;
+
+    // Create sender id map
+    for (Parser::Host n: nodes) {
+      bool host_is_receiver = (n.id == receiver.id) & (n.ip == receiver.ip) & (n.port == receiver.port);
+      if (!host_is_receiver) {
+        std::ostringstream sender_ip_and_port;
+        sender_ip_and_port << n.ip << ":" << n.portReadable();
+        other_nodes_id[sender_ip_and_port.str()] = n.id;
+      }
+    }
   }
 
-  void cleanup() {
-    close(node_socket);
-  }
+void Node::send() {
+  // Increment message sequence number
+  m_seq++;
+
+  // Transform message sequence number into big-endian for network transport
+  std::vector<char> buffer(sizeof(m_seq));
+  uint32_t network_byte_order_m_seq = htonl(m_seq);
+  memcpy(buffer.data(), &network_byte_order_m_seq, sizeof(uint32_t));
+
+  // Write send message to file
+  output << "b " << m_seq << "\n";
+
+  // Send message to receiver
+  sendto(node_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<const sockaddr *>(&recv_addr), sizeof(recv_addr));
+}
+
+void Node::receive() {
+  std::vector<char> buffer(sizeof(uint32_t));
+  sockaddr_in sender_addr;
+  socklen_t addr_len = sizeof(sender_addr);
   
-  void flushToOutput() {
-    // Print termination to file and close resources
-    output << "Process " << id << " terminated.\n";
-    output.close();
+  std::cout << "waiting for message\n";
+
+  if (recvfrom(node_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
+    throw std::runtime_error("recvfrom failed ");
   }
 
-  virtual ~Node() = default;
+  std::stringstream sender_ip_and_port;
+  sender_ip_and_port << sender_addr.sin_addr.s_addr << ":" << sender_addr.sin_port;
+  std::cout << "message received from " << sender_ip_and_port.str() << "\n";
 
-protected:
-  long unsigned int id;
+  uint32_t network_byte_order_value;
+  memcpy(&network_byte_order_value, buffer.data(), sizeof(uint32_t));
+  uint32_t m_seq = ntohl(network_byte_order_value);
 
-  std::ofstream output;
+  std::cout << "d " << other_nodes_id[sender_ip_and_port.str()] << " " << m_seq << "\n";
 
-  int node_socket;
-  sockaddr_in node_addr;
-};
+  output << "d " << other_nodes_id[sender_ip_and_port.str()] << " " << m_seq << "\n";
+  return;
+}
+
+void Node::cleanup() {
+  close(node_socket);
+}
+  
+void Node::flushToOutput() {
+  // Print termination to file and close resources
+  output << "Process " << id << " terminated.\n";
+  output.close();
+}
