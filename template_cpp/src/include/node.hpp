@@ -1,6 +1,5 @@
 #include <sys/socket.h>
 #include <string.h>
-#include <cstring>
 #include <vector>
 #include <iostream>
 #include <fstream>
@@ -15,13 +14,6 @@
  */
 class Node {
 public:  
-  /**
-   * Constructor to initialize the network node with its neighbors, its ID, the network's receiver ID, and the file output path. It sets up the UDP socket and binds it to the node's address.
-   * @param nodes A vector of all nodes in the network.
-   * @param id The unique identifier for this node.
-   * @param receiver_id The unique identifier for the network's receiver node.
-   * @param outputPath The path to the output file where messages will be logged.
-   */
   Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
   void send();
   void receive();

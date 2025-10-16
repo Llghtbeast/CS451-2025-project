@@ -1,7 +1,15 @@
 #include "node.hpp"
 
+/**
+ * Constructor to initialize the network node with its neighbors, its ID, the network's receiver ID, and the file output path. It sets up the UDP socket and binds it to the node's address.
+ * @param nodes A vector of all nodes in the network.
+ * @param id The unique identifier for this node.
+ * @param receiver_id The unique identifier for the network's receiver node.
+ * @param outputPath The path to the output file where messages will be logged.
+ */
 Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath)
-  : id(id), output(outputPath) {
+  : id(id), output(outputPath) 
+  {
     Parser::Host node = nodes[id - 1];
 
     // Create IPv6 UDP socket 
@@ -48,7 +56,8 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
     }
   }
 
-void Node::send() {
+void Node::send()
+{
   // Increment message sequence number
   m_seq++;
 
@@ -64,7 +73,8 @@ void Node::send() {
   sendto(node_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<const sockaddr *>(&recv_addr), sizeof(recv_addr));
 }
 
-void Node::receive() {
+void Node::receive()
+{
   std::vector<char> buffer(sizeof(uint32_t));
   sockaddr_in sender_addr;
   socklen_t addr_len = sizeof(sender_addr);
@@ -89,11 +99,13 @@ void Node::receive() {
   return;
 }
 
-void Node::cleanup() {
+void Node::cleanup() 
+{
   close(node_socket);
 }
   
-void Node::flushToOutput() {
+void Node::flushToOutput() 
+{
   // Print termination to file and close resources
   output << "Process " << id << " terminated.\n";
   output.close();
