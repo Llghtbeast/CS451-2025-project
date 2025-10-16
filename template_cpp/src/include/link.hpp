@@ -23,7 +23,7 @@ protected:
   sockaddr_in dest_addr;
   const uint32_t window_size = 1;
 public:
-  static const uint32_t buffer_size = 1 + sizeof(uint32_t); // 1 byte for message type + 4 bytes for m_seq
+  static constexpr int32_t buffer_size = 1 + sizeof(uint32_t); // 1 byte for message type + 4 bytes for m_seq
 };
 
 /**
@@ -31,6 +31,7 @@ public:
  */
 class SenderLink : public Link {
 public:
+  SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
   void enqueueMessage(uint32_t m_seq); //, std::string msg = "");
   void send();
   void receiveAck(uint32_t m_seq);
@@ -45,6 +46,7 @@ private:
  */
 class ReceiverLink : public Link {
 public:
+  ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
   bool deliver(uint32_t m_seq);
 
 private:

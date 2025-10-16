@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include "parser.hpp"
+#include "link.hpp"
 
 /**
  * Implementation of a network node that can send and receive messages.
@@ -15,19 +16,22 @@
 class Node {
 public:  
   Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
-  void send();
-  void receive();
+  void Node::enqueueMessage(std::string m, sockaddr_in dest);
+  void sendAndListen();
   void cleanup();  
   void flushToOutput();
 
 protected:
   long unsigned int id;
+  long unsigned int recv_id;
   std::ofstream output;
 
   int node_socket;
   sockaddr_in node_addr;
 
   uint32_t m_seq;
-  std::unordered_map<std::string, long unsigned int> other_nodes_id;
-  sockaddr_in recv_addr;
+  std::unordered_map< std::string, uint64_t> others_id;
+  std::unordered_map<std::string, SenderLink *> sendLinks;
+  std::unordered_map<std::string, ReceiverLink *> recvLinks;
+  sockaddr_in recv_addr; // TODO: remove for later implementations
 };

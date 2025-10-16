@@ -8,7 +8,7 @@
  * @param outputPath The path to the output file where messages will be logged.
  */
 Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath)
-  : id(id), output(outputPath) 
+  : id(id), recv_id(receiver_id), output(outputPath) 
   {
     Parser::Host node = nodes[id - 1];
 
@@ -21,10 +21,7 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
     }
 
     // Set up receiver address
-    memset(&node_addr, 0, sizeof(node_addr));
-    node_addr.sin_family = AF_INET;
-    node_addr.sin_port = htons(node.port);
-    node_addr.sin_addr.s_addr = node.ip;
+    setupIpAddress(node_addr, node);
 
     // Bind the socket with the recevier address
     if (bind(node_socket, reinterpret_cast<const sockaddr*>(&node_addr), sizeof(node_addr)) < 0) {
@@ -40,62 +37,96 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
 
     // Set up receiver address
     Parser::Host receiver = nodes[receiver_id - 1];
-    memset(&recv_addr, 0, sizeof(recv_addr));
-    recv_addr.sin_family = AF_INET;
-    recv_addr.sin_port = htons(receiver.port);
-    recv_addr.sin_addr.s_addr = receiver.ip;
+    setupIpAddress(recv_addr, receiver);
 
     // Create sender id map
     for (Parser::Host n: nodes) {
-      bool host_is_receiver = (n.id == receiver.id) & (n.ip == receiver.ip) & (n.port == receiver.port);
-      if (!host_is_receiver) {
-        std::ostringstream sender_ip_and_port;
-        sender_ip_and_port << n.ip << ":" << n.portReadable();
-        other_nodes_id[sender_ip_and_port.str()] = n.id;
+      if (n.id != id) {
+        // Create node address and map to node id.
+        sockaddr_in n_addr = {0};
+        setupIpAddress(n_addr, n);
+        std::string addr_hashable = ipAddressToString(n_addr);
+        others_id[addr_hashable] = n.id;
+
+        // Create network links
+        SenderLink sendLink(node_socket, node_addr, n_addr);
+        ReceiverLink recvLink(node_socket, node_addr, n_addr);
+        sendLinks[addr_hashable] = &sendLink;
+        recvLinks[addr_hashable] = &recvLink;
       }
     }
   }
 
-void Node::send()
+/**
+ * Set up address from host
+ */
+void setupIpAddress(sockaddr_in addr, Parser::Host host)
 {
+  memset(&addr, 0, sizeof(addr));
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(host.port);
+  addr.sin_addr.s_addr = host.ip;
+}
+
+/**
+ * Generate hashable string of IP address of a node
+ */
+std::string ipAddressToString(sockaddr_in addr)
+{
+  std::ostringstream sender_ip_and_port;
+  sender_ip_and_port << addr.sin_addr.s_addr << ":" << addr.sin_port;
+  return sender_ip_and_port.str();
+}
+
+/**
+ * Enqueue new message
+ */
+void Node::enqueueMessage(std::string m = "", sockaddr_in dest)
+{
+  if (m != "") {
+    throw std::runtime_error("Non-empty message is not implemented yet");
+  }
+
   // Increment message sequence number
   m_seq++;
 
   // Transform message sequence number into big-endian for network transport
-  std::vector<char> buffer(sizeof(m_seq));
-  uint32_t network_byte_order_m_seq = htonl(m_seq);
-  memcpy(buffer.data(), &network_byte_order_m_seq, sizeof(uint32_t));
+  std::string dest_str = ipAddressToString(dest);
+  sendLinks[dest_str]->enqueueMessage(m_seq);
 
   // Write send message to file
   output << "b " << m_seq << "\n";
-
-  // Send message to receiver
-  sendto(node_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<const sockaddr *>(&recv_addr), sizeof(recv_addr));
 }
 
-void Node::receive()
+void Node::sendAndListen()
 {
+  // TODO: choose which links to send messages on.
+  std::cout << "Sending a few messages.\n";
+  for (auto pair: sendLinks) {
+    pair.second->send();
+  }
+  
+  // Listen for messages
+  std::cout << "Listening for message\n";
   std::vector<char> buffer(sizeof(uint32_t));
   sockaddr_in sender_addr;
   socklen_t addr_len = sizeof(sender_addr);
-  
-  std::cout << "waiting for message\n";
 
-  if (recvfrom(node_socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
+  // TODO: do logic for message reception
+  if (recvfrom(node_socket, buffer.data(), , 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
     throw std::runtime_error("recvfrom failed ");
   }
 
-  std::stringstream sender_ip_and_port;
-  sender_ip_and_port << sender_addr.sin_addr.s_addr << ":" << sender_addr.sin_port;
-  std::cout << "message received from " << sender_ip_and_port.str() << "\n";
+  std::string sender_ip_and_port = ipAddressToString(sender_addr);
+  std::cout << "message received from " << sender_ip_and_port << "\n";
 
   uint32_t network_byte_order_value;
   memcpy(&network_byte_order_value, buffer.data(), sizeof(uint32_t));
   uint32_t m_seq = ntohl(network_byte_order_value);
 
-  std::cout << "d " << other_nodes_id[sender_ip_and_port.str()] << " " << m_seq << "\n";
+  std::cout << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
 
-  output << "d " << other_nodes_id[sender_ip_and_port.str()] << " " << m_seq << "\n";
+  output << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
   return;
 }
 

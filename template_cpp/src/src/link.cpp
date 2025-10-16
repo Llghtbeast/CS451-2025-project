@@ -27,6 +27,15 @@ std::vector<char> Link::encodeMessage(uint32_t m_seq, uint8_t message_type)
   return buffer;
 }
 
+
+/**
+ * Constructor to initialize the SenderLink with a socket and its send and receive addresses.
+ * @param socket The UDP socket used for communication.
+ * @param source_addr The address to which messages will be sent.
+ * @param dest_addr The address from which messages will be received.
+ */
+SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): Link(socket, source_addr, dest_addr) {}
+
 /**
 * Enqueues a message to be sent later.
 * @param m_seq The sequence number of the message.
@@ -85,6 +94,15 @@ void SenderLink::receiveAck(uint32_t m_seq)
 {
   messageQueue.erase(m_seq);
 }
+
+
+/**
+ * Constructor to initialize the ReceiverLink with a socket and its send and receive addresses.
+ * @param socket The UDP socket used for communication.
+ * @param source_addr The address to which messages will be sent.
+ * @param dest_addr The address from which messages will be received.
+ */
+ReceiverLink::ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): Link(socket, source_addr, dest_addr) {}
 
 /**
  * Add message to delivered list, send ACK to sender, and return true if message was not already delivered. Otherwise, return false.

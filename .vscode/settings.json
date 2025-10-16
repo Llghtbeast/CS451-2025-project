@@ -57,7 +57,8 @@
       "streambuf": "cpp",
       "thread": "cpp",
       "typeinfo": "cpp",
-      "variant": "cpp"
+      "variant": "cpp",
+      "set": "cpp"
     },
     "cmake.sourceDirectory": "/home/goldfish/Documents/EPFL/master/DisAlg/CS451-2025-project/template_cpp",
     "python-envs.defaultEnvManager": "ms-python.python:conda",
