@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <memory>
 
 #include "parser.hpp"
 #include "link.hpp"
@@ -34,7 +35,7 @@ protected:
 
   uint32_t m_seq;
   std::unordered_map< std::string, uint64_t> others_id;
-  std::unordered_map<std::string, SenderLink *> sendLinks;
-  std::unordered_map<std::string, ReceiverLink *> recvLinks;
+  std::unordered_map<std::string, std::unique_ptr<SenderLink>> sendLinks;
+  std::unordered_map<std::string, std::unique_ptr<ReceiverLink>> recvLinks;
   sockaddr_in recv_addr; // TODO: remove for later implementations
 };

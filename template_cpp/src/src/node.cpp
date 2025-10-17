@@ -48,10 +48,8 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
         others_id[addr_hashable] = n.id;
 
         // Create network links
-        SenderLink sendLink(node_socket, node_addr, n_addr);
-        ReceiverLink recvLink(node_socket, node_addr, n_addr);
-        sendLinks[addr_hashable] = &sendLink;
-        recvLinks[addr_hashable] = &recvLink;
+        sendLinks[addr_hashable] = std::make_unique<SenderLink>(node_socket, node_addr, n_addr);
+        recvLinks[addr_hashable] = std::make_unique<ReceiverLink>(node_socket, node_addr, n_addr);
       }
     }
   }
@@ -70,6 +68,7 @@ void Node::enqueueMessage(sockaddr_in dest, std::string m)
 
   // Transform message sequence number into big-endian for network transport
   std::string dest_str = ipAddressToString(dest);
+  std::cout << "test\n";
   sendLinks[dest_str]->enqueueMessage(m_seq);
 
   // Write enqueued messages to file
@@ -80,7 +79,7 @@ void Node::sendAndListen()
 {
   // TODO: choose which links to send messages on.
   std::cout << "Sending a few messages.\n";
-  for (auto pair: sendLinks) {
+  for (auto &pair: sendLinks) {
     // Send messages enqueued on each sender link
     pair.second->send();
   }

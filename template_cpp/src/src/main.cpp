@@ -108,10 +108,12 @@ int main(int argc, char **argv) {
     std::cout << "Receiver created and waiting to receive\n";
   } else {
     std::cout << "Sender created and starting to send\n";    
-
+    
     for (size_t i = 0; i < total_m; i++) {
+      std::cout << "Enqueued message " << i + 1 << " out of " << total_m << "\n";
       node.enqueueMessage(setupIpAddress(parser.hosts()[recv_id - 1]));
     }
+    std::cout << "All messages enqueued.\n\n";
   }
 
   // Start sending and listening loop

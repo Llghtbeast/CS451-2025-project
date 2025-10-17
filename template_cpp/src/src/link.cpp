@@ -50,7 +50,10 @@ std::pair<uint32_t, uint8_t> Link::decodeMessage(const std::vector<char>& buffer
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): Link(socket, source_addr, dest_addr) {}
+SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): Link(socket, source_addr, dest_addr)
+{
+  messageQueue = {};
+}
 
 /**
 * Enqueues a message to be sent later.
@@ -59,12 +62,12 @@ SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_add
 */
 void SenderLink::enqueueMessage(uint32_t m_seq) //, std::string msg = "")
 {  
-  if (messageQueue.size() >= 1'000'000) {
+  if (!messageQueue.empty() & (messageQueue.size() >= 1'000'000)) {
     std::ostringstream os;
     os << "Sender " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " 's message queue is growing too large ";
     throw std::runtime_error(os.str());
   }
-
+  std::cout << messageQueue.size() << "\n";
   messageQueue.insert(messageQueue.end(), m_seq); // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
 }
 
