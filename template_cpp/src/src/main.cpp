@@ -4,10 +4,11 @@
 #include <string>
 #include <thread>
 #include <memory>
+#include <signal.h>
 
 #include "parser.hpp"
 #include "node.hpp"
-#include <signal.h>
+#include "helper.hpp"
 
 static Node* p_node = nullptr;
 
@@ -105,15 +106,18 @@ int main(int argc, char **argv) {
 
   if (parser.id() == recv_id) {
     std::cout << "Receiver created and waiting to receive\n";
-    while (true) {
-      node.receive();
-    }
   } else {
     std::cout << "Sender created and starting to send\n";    
 
     for (size_t i = 0; i < total_m; i++) {
-      node.send();
+      node.enqueueMessage(setupIpAddress(parser.hosts()[recv_id - 1]));
     }
+  }
+
+  // Start sending and listening loop
+  while (true)
+  {
+    node.sendAndListen();
   }
 
   // After a process finishes broadcasting,

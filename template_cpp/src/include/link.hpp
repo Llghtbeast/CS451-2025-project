@@ -9,20 +9,27 @@
 
 #include "parser.hpp"
 
+enum MessageType : uint8_t {
+  MES = 0,
+  ACK = 1,
+  NACK = 2
+};
+
 /**
  * Base class representing the endpoints of a communication link with send and receive capabilities.
  */
 class Link {
 public:
   Link(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-  std::vector<char> encodeMessage(uint32_t m_seq, uint8_t message_type);
+  static std::vector<char> encodeMessage(uint32_t m_seq, uint8_t message_type);
+  static std::pair<uint32_t, uint8_t> decodeMessage(const std::vector<char>& buffer);
   
 protected:
   int socket;
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
-  const uint32_t window_size = 1;
 public:
+  static constexpr uint32_t window_size = 1;
   static constexpr int32_t buffer_size = 1 + sizeof(uint32_t); // 1 byte for message type + 4 bytes for m_seq
 };
 

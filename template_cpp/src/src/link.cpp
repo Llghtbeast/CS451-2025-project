@@ -1,9 +1,5 @@
 #include "link.hpp"
 
-#define MES 0
-#define ACK 1
-#define NACK 2
-
 /**
  * Constructor to initialize the Link with a socket and its send and receive addresses.
  * @param socket The UDP socket used for communication.
@@ -27,6 +23,26 @@ std::vector<char> Link::encodeMessage(uint32_t m_seq, uint8_t message_type)
   return buffer;
 }
 
+/**
+ * Decodes a received message from a byte vector.
+ * @param buffer The vector of characters representing the received message.
+ * @return A pair containing the message sequence number and the message type.
+ * @throws std::runtime_error if the buffer is too small.
+ */
+std::pair<uint32_t, uint8_t> Link::decodeMessage(const std::vector<char>& buffer)
+{
+  if (buffer.size() < Link::buffer_size) {
+    throw std::runtime_error("Link::decodeMessage: buffer too small");
+  }
+
+  uint8_t message_type = static_cast<uint8_t>(buffer[0]);
+
+  uint32_t network_byte_order_m_seq = 0;
+  memcpy(&network_byte_order_m_seq, buffer.data() + 1, sizeof(network_byte_order_m_seq));
+  uint32_t m_seq = ntohl(network_byte_order_m_seq);
+
+  return {m_seq, message_type};
+}
 
 /**
  * Constructor to initialize the SenderLink with a socket and its send and receive addresses.

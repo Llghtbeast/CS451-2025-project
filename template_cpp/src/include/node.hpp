@@ -1,3 +1,5 @@
+#include <chrono>
+#include <thread>
 #include <sys/socket.h>
 #include <string.h>
 #include <vector>
@@ -9,6 +11,7 @@
 
 #include "parser.hpp"
 #include "link.hpp"
+#include "helper.hpp"
 
 /**
  * Implementation of a network node that can send and receive messages.
@@ -16,7 +19,7 @@
 class Node {
 public:  
   Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
-  void Node::enqueueMessage(std::string m, sockaddr_in dest);
+  void enqueueMessage(sockaddr_in dest, std::string m = "");
   void sendAndListen();
   void cleanup();  
   void flushToOutput();
