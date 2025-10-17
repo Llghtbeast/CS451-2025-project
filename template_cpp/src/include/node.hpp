@@ -20,7 +20,7 @@
 class Node {
 public:  
   Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
-  void enqueueMessage(sockaddr_in dest, std::string m = "");
+  void enqueueMessage(sockaddr_in dest);
   void sendAndListen();
   void cleanup();  
   void flushToOutput();

@@ -16,7 +16,7 @@ Link::Link(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): socket(s
  */
 std::vector<char> Link::encodeMessage(uint32_t m_seq, uint8_t message_type)
 {
-  std::vector<char> buffer(1 + sizeof(uint32_t));
+  std::vector<char> buffer(Link::buffer_size);
   buffer[0] = static_cast<char>(message_type);
   uint32_t network_byte_order_m_seq = htonl(m_seq);
   memcpy(buffer.data() + 1, &network_byte_order_m_seq, sizeof(network_byte_order_m_seq));
@@ -60,7 +60,7 @@ SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_add
 * @param m_seq The sequence number of the message.
 * @throws std::runtime_error if message queue grows too large.
 */
-void SenderLink::enqueueMessage(uint32_t m_seq) //, std::string msg = "")
+void SenderLink::enqueueMessage(uint32_t m_seq)
 {  
   if (!messageQueue.empty() & (messageQueue.size() >= 1'000'000)) {
     std::ostringstream os;
@@ -89,7 +89,7 @@ void SenderLink::send()
 
     // Send message to receiver
     // TODO: group multiple messages into one UDP packet
-    if (sendto(socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
+    if (sendto(socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
       send_failure.push_back(m_seq);
     }
   }
@@ -141,7 +141,7 @@ bool ReceiverLink::deliver(uint32_t m_seq)
     std::vector<char> buffer = encodeMessage(m_seq, ACK);
 
     // Send ACK to sender
-    if (sendto(socket, buffer.data(), sizeof(uint32_t), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
+    if (sendto(socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
       std::ostringstream os;
       os << "Failed to send ACK " << m_seq << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
       throw std::runtime_error(os.str());

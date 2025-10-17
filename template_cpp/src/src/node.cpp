@@ -57,12 +57,8 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
 /**
  * Enqueue new message
  */
-void Node::enqueueMessage(sockaddr_in dest, std::string m)
+void Node::enqueueMessage(sockaddr_in dest)
 {
-  if (m != "") {
-    throw std::runtime_error("Non-empty message is not implemented yet");
-  }
-
   // Increment message sequence number
   m_seq++;
 
@@ -86,13 +82,14 @@ void Node::sendAndListen()
   
   // Listen for messages
   std::cout << "Listening for message\n";
-  std::vector<char> buffer(sizeof(uint32_t));
+  std::vector<char> buffer(Link::buffer_size);
   sockaddr_in sender_addr;
   socklen_t addr_len = sizeof(sender_addr);
 
   // Check for incoming messages
   for (size_t i = 0; i < Link::window_size; i++)
   {
+    // Wait to receive message
     if (recvfrom(node_socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
       throw std::runtime_error("recvfrom failed ");
     }
@@ -100,6 +97,7 @@ void Node::sendAndListen()
     std::cout << "message received from " << sender_ip_and_port << "\n";
   
     // Decode message
+    std::cout << "Buffer size: " << buffer.size() << std::endl;
     std::pair<uint32_t, uint8_t> decoded = Link::decodeMessage(buffer);
     uint32_t m_seq = decoded.first;
     uint8_t message_type = decoded.second;
@@ -119,9 +117,6 @@ void Node::sendAndListen()
       throw std::runtime_error("Unknown message type received.");
     }
   }
-
-  // Wait to not congest the network
-  std::this_thread::sleep_for(std::chrono::microseconds(100));
 }
 
 void Node::cleanup() 

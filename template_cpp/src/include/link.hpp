@@ -39,7 +39,7 @@ public:
 class SenderLink : public Link {
 public:
   SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-  void enqueueMessage(uint32_t m_seq); //, std::string msg = "");
+  void enqueueMessage(uint32_t m_seq);
   void send();
   void receiveAck(uint32_t m_seq);
 
