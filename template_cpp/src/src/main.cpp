@@ -19,14 +19,13 @@ static void stop(int) {
 
   // Clean up resources
   std::cout << "Cleaning up resources.\n";
-  p_node->cleanup();
 
   // immediately stop network packet processing
   std::cout << "Immediately stopping network packet processing.\n";
 
   // write/flush output file if necessary
   std::cout << "Writing output.\n";
-  p_node->flushToOutput();
+  p_node->terminate();
 
   // exit directly from signal handler
   exit(0);
@@ -103,23 +102,28 @@ int main(int argc, char **argv) {
   // Create senders and receiver
   Node node(hosts, parser.id(), recv_id, parser.outputPath());
   p_node = &node;
+  
+  // Start node (sending and listening)
+  std::thread node_thread(&Node::start, &node);
+  node_thread.detach();
 
   if (parser.id() == recv_id) {
     std::cout << "Receiver created and waiting to receive\n";
   } else {
     std::cout << "Sender created and starting to send\n";    
-    
-    for (size_t i = 0; i < total_m; i++) {
-      std::cout << "Enqueued message " << i + 1 << " out of " << total_m << "\n";
-      node.enqueueMessage(setupIpAddress(parser.hosts()[recv_id - 1]));
+        
+    // Start enqueueing messages if this is a sender
+    for (size_t i = 0; i < total_m;) {
+      // Try to enqueue message, if queue is full yield to other threads and retry
+      if (!node.sendMessage(setupIpAddress(parser.hosts()[recv_id - 1]))) {
+        std::cout << "Message queue full, waiting before enqueueing more messages...\n";
+        std::this_thread::yield();
+      } else {
+        std::cout << "Enqueued message " << i + 1 << " out of " << total_m << "\n";
+        i++;
+      }
     }
     std::cout << "All messages enqueued.\n\n";
-  }
-
-  // Start sending and listening loop
-  while (true)
-  {
-    node.sendAndListen();
   }
 
   // After a process finishes broadcasting,

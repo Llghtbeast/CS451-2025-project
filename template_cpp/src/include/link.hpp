@@ -29,7 +29,7 @@ protected:
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
 public:
-  static constexpr uint32_t window_size = 1;
+  static constexpr uint32_t window_size = 1; // TODO: increase window size for performance, need to implement more complex logic
   static constexpr int32_t buffer_size = 1 + sizeof(uint32_t); // 1 byte for message type + 4 bytes for m_seq
 };
 
@@ -39,13 +39,14 @@ public:
 class SenderLink : public Link {
 public:
   SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-  void enqueueMessage(uint32_t m_seq);
+  bool enqueueMessage();
   void send();
   void receiveAck(uint32_t m_seq);
 
 private:
-  // std::unordered_map<uint32_t, std::string> messages;
+  uint32_t m_seq = 0;
   std::set<uint32_t> messageQueue;
+  size_t maxQueueSize = window_size * 100;
 };
 
 /**

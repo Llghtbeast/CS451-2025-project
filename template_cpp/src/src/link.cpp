@@ -60,15 +60,18 @@ SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_add
 * @param m_seq The sequence number of the message.
 * @throws std::runtime_error if message queue grows too large.
 */
-void SenderLink::enqueueMessage(uint32_t m_seq)
+bool SenderLink::enqueueMessage()
 {  
-  if (!messageQueue.empty() & (messageQueue.size() >= 1'000'000)) {
-    std::ostringstream os;
-    os << "Sender " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " 's message queue is growing too large ";
-    throw std::runtime_error(os.str());
+  // Increment message sequence number
+  m_seq++;
+
+  // Try to append message to queue
+  if (messageQueue.size() >= maxQueueSize) {
+    return false;
   }
   std::cout << messageQueue.size() << "\n";
   messageQueue.insert(messageQueue.end(), m_seq); // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
+  return true;
 }
 
 /**

@@ -9,6 +9,9 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <memory>
+#include <thread>
+#include <atomic>
+#include <queue>
 
 #include "parser.hpp"
 #include "link.hpp"
@@ -20,22 +23,28 @@
 class Node {
 public:  
   Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
-  void enqueueMessage(sockaddr_in dest);
-  void sendAndListen();
+  void send();
+  void listen();
+  void start();
+  bool sendMessage(sockaddr_in dest);
+  void terminate();
   void cleanup();  
   void flushToOutput();
 
-protected:
+private:
   long unsigned int id;
   long unsigned int recv_id;
   std::ofstream output;
+  std::atomic_bool runFlag;
 
   int node_socket;
   sockaddr_in node_addr;
 
-  uint32_t m_seq;
   std::unordered_map< std::string, uint64_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<SenderLink>> sendLinks;
   std::unordered_map<std::string, std::unique_ptr<ReceiverLink>> recvLinks;
   sockaddr_in recv_addr; // TODO: remove for later implementations
+
+  std::thread sender_thread;
+  std::thread listener_thread;
 };

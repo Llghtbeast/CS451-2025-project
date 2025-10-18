@@ -8,8 +8,12 @@
  * @param outputPath The path to the output file where messages will be logged.
  */
 Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath)
-  : id(id), recv_id(receiver_id), output(outputPath) 
+  : id(id), recv_id(receiver_id), output(outputPath)
   {
+    // Initialize run flag
+    runFlag.store(false);
+
+    // Extract this node's information
     Parser::Host node = nodes[id - 1];
 
     // Create IPv6 UDP socket 
@@ -32,9 +36,6 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
       std::cout << "Socket bound to address " << node.ipReadable() << ":" << node.portReadable() << "\n";
     }
 
-    // Init message sequence number
-    m_seq = 0;
-
     // Set up receiver address
     Parser::Host receiver = nodes[receiver_id - 1];
     recv_addr = setupIpAddress(receiver);
@@ -55,41 +56,46 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
   }
 
 /**
- * Enqueue new message
+ * Enqueues a message with the current sequence number to be sent to the specified destination address.
+ * @param dest The destination address to send messages to.
+ * @return True if the message was successfully enqueued, false if the message queue is full.
  */
-void Node::enqueueMessage(sockaddr_in dest)
+bool Node::sendMessage(sockaddr_in dest)
 {
-  // Increment message sequence number
-  m_seq++;
-
   // Transform message sequence number into big-endian for network transport
-  std::string dest_str = ipAddressToString(dest);
-  std::cout << "test\n";
-  sendLinks[dest_str]->enqueueMessage(m_seq);
-
-  // Write enqueued messages to file
-  output << "b " << m_seq << "\n";
+    std::string dest_str = ipAddressToString(dest);
+    std::cout << "test\n";
+    return sendLinks[dest_str]->enqueueMessage();
 }
 
-void Node::sendAndListen()
+/**
+ * Message sending loop that continuously enqueues and sends messages to the specified destination address while the run flag is set.
+ */
+void Node::send()
 {
-  // TODO: choose which links to send messages on.
-  std::cout << "Sending a few messages.\n";
-  for (auto &pair: sendLinks) {
-    // Send messages enqueued on each sender link
-    pair.second->send();
-  }
-  
-  // Listen for messages
-  std::cout << "Listening for message\n";
-  std::vector<char> buffer(Link::buffer_size);
-  sockaddr_in sender_addr;
-  socklen_t addr_len = sizeof(sender_addr);
-
-  // Check for incoming messages
-  for (size_t i = 0; i < Link::window_size; i++)
+  while (runFlag.load())
   {
-    // Wait to receive message
+    // TODO: choose which links to send messages on.
+    std::cout << "Sending a few messages.\n";
+    for (auto &pair: sendLinks) {
+      // Send messages enqueued on each sender link
+      pair.second->send();
+    }
+  }
+}
+
+void Node::listen()
+{
+  // Listen while the run flag is set
+  while (runFlag.load())
+  {
+    // Prepare buffer to receive message
+    std::cout << "Listening for message\n";
+    std::vector<char> buffer(Link::buffer_size);
+    sockaddr_in sender_addr;
+    socklen_t addr_len = sizeof(sender_addr);
+  
+    // Sleeps until message received.
     if (recvfrom(node_socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
       throw std::runtime_error("recvfrom failed ");
     }
@@ -97,11 +103,10 @@ void Node::sendAndListen()
     std::cout << "message received from " << sender_ip_and_port << "\n";
   
     // Decode message
-    std::cout << "Buffer size: " << buffer.size() << std::endl;
     std::pair<uint32_t, uint8_t> decoded = Link::decodeMessage(buffer);
     uint32_t m_seq = decoded.first;
     uint8_t message_type = decoded.second;
-
+  
     if (message_type == MES) {
       // Deliver message to receiver link
       bool delivered = recvLinks[sender_ip_and_port]->deliver(m_seq);
@@ -117,6 +122,36 @@ void Node::sendAndListen()
       throw std::runtime_error("Unknown message type received.");
     }
   }
+}
+
+void Node::start()
+{
+  // avoid starting multiple times
+  if (runFlag.load()) {
+    return;
+  }
+
+  runFlag.store(true);
+  // start worker threads bound to this instance
+  sender_thread = std::thread(&Node::send, this);
+  listener_thread = std::thread(&Node::listen, this);
+}
+
+
+void Node::terminate()
+{
+  // Stop the node's sending and listening threads (finish execution and exit)
+  runFlag.store(false);
+
+  // unblock recvfrom if it's blocked
+  ::shutdown(node_socket, SHUT_RDWR);
+
+  // join threads (wait for loops to exit)
+  if (sender_thread.joinable()) sender_thread.join();
+  if (listener_thread.joinable()) listener_thread.join();
+
+  cleanup();
+  flushToOutput();
 }
 
 void Node::cleanup() 
