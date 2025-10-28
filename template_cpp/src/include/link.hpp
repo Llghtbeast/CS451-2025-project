@@ -6,14 +6,12 @@
 #include <unistd.h>
 #include <unordered_map>
 #include <set>
+#include <condition_variable>
+#include <mutex>
+#include <errno.h>
 
 #include "parser.hpp"
-
-enum MessageType : uint8_t {
-  MES = 0,
-  ACK = 1,
-  NACK = 2
-};
+#include "message.hpp"
 
 /**
  * Base class representing the endpoints of a communication link with send and receive capabilities.
@@ -21,16 +19,13 @@ enum MessageType : uint8_t {
 class Link {
 public:
   Link(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-  static std::vector<char> encodeMessage(uint32_t m_seq, uint8_t message_type);
-  static std::pair<uint32_t, uint8_t> decodeMessage(const std::vector<char>& buffer);
-  
+
 protected:
   int socket;
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
 public:
   static constexpr uint32_t window_size = 1; // TODO: increase window size for performance, need to implement more complex logic
-  static constexpr int32_t buffer_size = 1 + sizeof(uint32_t); // 1 byte for message type + 4 bytes for m_seq
 };
 
 /**
@@ -39,14 +34,17 @@ public:
 class SenderLink : public Link {
 public:
   SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-  bool enqueueMessage();
+  uint32_t enqueueMessage();
   void send();
-  void receiveAck(uint32_t m_seq);
+  void receiveAck(std::vector<uint32_t> acked_messages);
 
 private:
   uint32_t m_seq = 0;
   std::set<uint32_t> messageQueue;
   size_t maxQueueSize = window_size * 100;
+
+  std::condition_variable queue_cv;
+  std::mutex queue_mutex;
 };
 
 /**
@@ -55,8 +53,8 @@ private:
 class ReceiverLink : public Link {
 public:
   ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-  bool deliver(uint32_t m_seq);
+  std::vector<bool> respond(Message messages);
 
 private:
-  uint32_t last_delivered = 0;
+  std::set<uint32_t> deliveredMessages;
 };

@@ -16,16 +16,18 @@ static void stop(int) {
   // reset signal handlers to default
   signal(SIGTERM, SIG_DFL);
   signal(SIGINT, SIG_DFL);
+  
+  // immediately stop network packet processing
+  std::cout << "Immediately stopping network packet processing.\n";
+  p_node->terminate();
+  
+  // write/flush output file if necessary
+  std::cout << "Writing output.\n";
+  p_node->flushToOutput();
 
   // Clean up resources
   std::cout << "Cleaning up resources.\n";
-
-  // immediately stop network packet processing
-  std::cout << "Immediately stopping network packet processing.\n";
-
-  // write/flush output file if necessary
-  std::cout << "Writing output.\n";
-  p_node->terminate();
+  p_node->cleanup();
 
   // exit directly from signal handler
   exit(0);
@@ -115,13 +117,8 @@ int main(int argc, char **argv) {
     // Start enqueueing messages if this is a sender
     for (size_t i = 0; i < total_m;) {
       // Try to enqueue message, if queue is full yield to other threads and retry
-      if (!node.sendMessage(setupIpAddress(parser.hosts()[recv_id - 1]))) {
-        std::cout << "Message queue full, waiting before enqueueing more messages...\n";
-        std::this_thread::yield();
-      } else {
-        std::cout << "Enqueued message " << i + 1 << " out of " << total_m << "\n";
-        i++;
-      }
+      node.enqueueMessage(setupIpAddress(parser.hosts()[recv_id - 1]));
+      i++;
     }
     std::cout << "All messages enqueued.\n\n";
   }

@@ -58,14 +58,13 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
 /**
  * Enqueues a message with the current sequence number to be sent to the specified destination address.
  * @param dest The destination address to send messages to.
- * @return True if the message was successfully enqueued, false if the message queue is full.
  */
-bool Node::sendMessage(sockaddr_in dest)
+void Node::enqueueMessage(sockaddr_in dest)
 {
   // Transform message sequence number into big-endian for network transport
     std::string dest_str = ipAddressToString(dest);
-    std::cout << "test\n";
-    return sendLinks[dest_str]->enqueueMessage();
+    uint32_t seq = sendLinks[dest_str]->enqueueMessage();
+    output << "b " << seq << "\n";
 }
 
 /**
@@ -75,12 +74,15 @@ void Node::send()
 {
   while (runFlag.load())
   {
-    // TODO: choose which links to send messages on.
-    std::cout << "Sending a few messages.\n";
+    // Try sending messages from all sender links
     for (auto &pair: sendLinks) {
       // Send messages enqueued on each sender link
       pair.second->send();
     }
+
+    // Sleep for a short duration to avoid busy-waiting (waiting for messages to be enqueued)
+    // For optimal performance, could try to design a congestion control algorithm to adjust sending rate based on network conditions
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 }
 
@@ -91,34 +93,48 @@ void Node::listen()
   {
     // Prepare buffer to receive message
     std::cout << "Listening for message\n";
-    std::vector<char> buffer(Link::buffer_size);
+    std::vector<char> buffer(Message::max_size);
     sockaddr_in sender_addr;
     socklen_t addr_len = sizeof(sender_addr);
   
     // Sleeps until message received.
-    if (recvfrom(node_socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len) < 0) {
+    ssize_t bytes_received = recvfrom(node_socket, buffer.data(), Message::max_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len);
+    if (bytes_received < 0) {
       throw std::runtime_error("recvfrom failed ");
     }
+    else if (bytes_received == 0) {
+      std::cout << "Socket shutdown, stopping network packet processing.\n";
+      return; // Socket has been shut down
+    }
+
+    // Decode message
+    Message msg = Message::deserialize(buffer.data());
+    std::vector<uint32_t> messages = msg.getSeqs();
+    MessageType type = msg.getType();
+    
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     std::cout << "message received from " << sender_ip_and_port << "\n";
-  
-    // Decode message
-    std::pair<uint32_t, uint8_t> decoded = Link::decodeMessage(buffer);
-    uint32_t m_seq = decoded.first;
-    uint8_t message_type = decoded.second;
-  
-    if (message_type == MES) {
+    
+    if (type == MES) {
       // Deliver message to receiver link
-      bool delivered = recvLinks[sender_ip_and_port]->deliver(m_seq);
-      if (delivered) {
-        std::cout << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
-        output << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
+      std::vector<bool> delivered = recvLinks[sender_ip_and_port]->respond(msg);
+      for (size_t i = 0; i < messages.size(); i++) {
+        uint32_t m_seq = messages[i];
+        bool was_delivered = delivered[i];
+        if (was_delivered) {
+          std::cout << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
+          output << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
+        }
       }
-    } else if (message_type == ACK) {
+    }
+    else if (type == ACK) {
       // Process ACK on sender link
-      sendLinks[sender_ip_and_port]->receiveAck(m_seq);
-      std::cout << "ACK " << m_seq << " processed.\n";
-    } else {
+      sendLinks[sender_ip_and_port]->receiveAck(messages);
+      for (uint32_t m_seq: messages) {
+        std::cout << "ACK " << m_seq << " processed.\n";
+      }
+    }
+    else {
       throw std::runtime_error("Unknown message type received.");
     }
   }
@@ -132,6 +148,7 @@ void Node::start()
   }
 
   runFlag.store(true);
+
   // start worker threads bound to this instance
   sender_thread = std::thread(&Node::send, this);
   listener_thread = std::thread(&Node::listen, this);
@@ -143,25 +160,24 @@ void Node::terminate()
   // Stop the node's sending and listening threads (finish execution and exit)
   runFlag.store(false);
 
+  std::cout << std::endl;
+
   // unblock recvfrom if it's blocked
   ::shutdown(node_socket, SHUT_RDWR);
 
   // join threads (wait for loops to exit)
   if (sender_thread.joinable()) sender_thread.join();
   if (listener_thread.joinable()) listener_thread.join();
-
-  cleanup();
-  flushToOutput();
 }
 
 void Node::cleanup() 
 {
   close(node_socket);
+  output.close();
 }
   
 void Node::flushToOutput() 
 {
   // Print termination to file and close resources
   output << "Process " << id << " terminated.\n";
-  output.close();
 }

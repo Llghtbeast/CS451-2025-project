@@ -8,7 +8,7 @@ sockaddr_in setupIpAddress(Parser::Host host)
   sockaddr_in addr;
   memset(&addr, 0, sizeof(addr));
   addr.sin_family = AF_INET;
-  addr.sin_port = htons(host.port);
+  addr.sin_port = host.port;
   addr.sin_addr.s_addr = host.ip;
   return addr;
 }

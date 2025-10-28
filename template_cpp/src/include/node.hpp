@@ -16,6 +16,7 @@
 #include "parser.hpp"
 #include "link.hpp"
 #include "helper.hpp"
+#include "message.hpp"
 
 /**
  * Implementation of a network node that can send and receive messages.
@@ -26,7 +27,7 @@ public:
   void send();
   void listen();
   void start();
-  bool sendMessage(sockaddr_in dest);
+  void enqueueMessage(sockaddr_in dest);
   void terminate();
   void cleanup();  
   void flushToOutput();

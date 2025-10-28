@@ -9,42 +9,6 @@
 Link::Link(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): socket(socket), source_addr(source_addr), dest_addr(dest_addr) {}
 
 /**
- * Encodes a message sequence number into a byte vector for transmission.
- * @param m_seq The sequence number of the message.
- * @param is_ack A boolean indicating if the message is an acknowledgment.
- * @return A vector of characters representing the encoded message.
- */
-std::vector<char> Link::encodeMessage(uint32_t m_seq, uint8_t message_type)
-{
-  std::vector<char> buffer(Link::buffer_size);
-  buffer[0] = static_cast<char>(message_type);
-  uint32_t network_byte_order_m_seq = htonl(m_seq);
-  memcpy(buffer.data() + 1, &network_byte_order_m_seq, sizeof(network_byte_order_m_seq));
-  return buffer;
-}
-
-/**
- * Decodes a received message from a byte vector.
- * @param buffer The vector of characters representing the received message.
- * @return A pair containing the message sequence number and the message type.
- * @throws std::runtime_error if the buffer is too small.
- */
-std::pair<uint32_t, uint8_t> Link::decodeMessage(const std::vector<char>& buffer)
-{
-  if (buffer.size() < Link::buffer_size) {
-    throw std::runtime_error("Link::decodeMessage: buffer too small");
-  }
-
-  uint8_t message_type = static_cast<uint8_t>(buffer[0]);
-
-  uint32_t network_byte_order_m_seq = 0;
-  memcpy(&network_byte_order_m_seq, buffer.data() + 1, sizeof(network_byte_order_m_seq));
-  uint32_t m_seq = ntohl(network_byte_order_m_seq);
-
-  return {m_seq, message_type};
-}
-
-/**
  * Constructor to initialize the SenderLink with a socket and its send and receive addresses.
  * @param socket The UDP socket used for communication.
  * @param source_addr The address to which messages will be sent.
@@ -58,20 +22,25 @@ SenderLink::SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_add
 /**
 * Enqueues a message to be sent later.
 * @param m_seq The sequence number of the message.
-* @throws std::runtime_error if message queue grows too large.
 */
-bool SenderLink::enqueueMessage()
+uint32_t SenderLink::enqueueMessage()
 {  
   // Increment message sequence number
   m_seq++;
 
-  // Try to append message to queue
-  if (messageQueue.size() >= maxQueueSize) {
-    return false;
-  }
-  std::cout << messageQueue.size() << "\n";
-  messageQueue.insert(messageQueue.end(), m_seq); // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
-  return true;
+  // Wait until there is space in the queue
+  std::unique_lock<std::mutex> lock(queue_mutex);
+  queue_cv.wait(lock, [&]() {
+    return messageQueue.size() < maxQueueSize;
+  });
+  
+  // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
+  messageQueue.insert(messageQueue.end(), m_seq); 
+  
+  // Notify any waiting threads that a new message has been enqueued
+  lock.unlock();
+
+  return m_seq;
 }
 
 /**
@@ -80,43 +49,61 @@ bool SenderLink::enqueueMessage()
  */
 void SenderLink::send()
 {
+  // Lock the queue while accessing it
+  std::lock_guard<std::mutex> lock(queue_mutex);
+
+  if (messageQueue.empty()) {
+    return; // No messages to send
+  }
+
   // set up for message iterator and send failure array
   std::set<uint32_t>::iterator it = messageQueue.begin();
-  std::vector<uint32_t> send_failure;
-
+  
   for (uint32_t i = 0; i < window_size && it != messageQueue.end(); i++, it++) {
-    uint32_t m_seq = *it;
+    std::vector<uint32_t> msgs;
+
+    uint8_t nb_msgs = 0;
+    for (nb_msgs = 0; nb_msgs < Message::max_msgs && it != messageQueue.end(); nb_msgs++, it++) {
+      msgs.push_back(*it);
+    }
 
     // Transform message sequence number into big-endian for network transport
-    std::vector<char> buffer = encodeMessage(m_seq, MES);
-
+    Message message(MES, nb_msgs, msgs);
+    std::cout << messageQueue.size() << " messages in queue. " << std::endl;
+    std::cout << "Sending message with seq numbers: ";
+    for (uint32_t seq: msgs) {
+      std::cout << seq << " ";
+    }
+    std::cout << std::endl;
+  
     // Send message to receiver
-    // TODO: group multiple messages into one UDP packet
-    if (sendto(socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
-      send_failure.push_back(m_seq);
+    if (sendto(socket, message.serialize(), message.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
+      std::ostringstream os;
+      os << "Failed to send message " << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
+      throw std::runtime_error(os.str());
     }
   }
 
-  if (!send_failure.empty()) {
-    std::ostringstream os;
-    os << "Failed to send message ";
-    for (uint32_t m_seq: send_failure) { 
-      os << m_seq << ", ";
-    }
-    os << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
-    throw std::runtime_error(os.str());
-  }
 }
 
 /** 
  * Receive ACK from receiver and removed corresponding message from queue.
  * @param m_seq The sequence number of the acknowledged message.
 */
-void SenderLink::receiveAck(uint32_t m_seq)
+void SenderLink::receiveAck(std::vector<uint32_t> acked_messages)
 {
-  messageQueue.erase(m_seq);
+  // Lock the queue while modifying it
+  std::unique_lock<std::mutex> lock(queue_mutex);
+  
+  // Remove message from queue (correctly delivered at target)
+  for (uint32_t seq: acked_messages) {
+    messageQueue.erase(seq);
+  }
+  
+  // Notify the waiting enqueuer thread that space is available in the queue
+  lock.unlock();
+  queue_cv.notify_one();
 }
-
 
 /**
  * Constructor to initialize the ReceiverLink with a socket and its send and receive addresses.
@@ -124,33 +111,40 @@ void SenderLink::receiveAck(uint32_t m_seq)
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-ReceiverLink::ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr): Link(socket, source_addr, dest_addr) {}
+ReceiverLink::ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : Link(socket, source_addr, dest_addr), deliveredMessages({})
+{}
 
 /**
  * Add message to delivered list, send ACK to sender, and return true if message was not already delivered. Otherwise, return false.
  * @param m_seq The sequence number of the message to be delivered.
  * @return True if the message was not already delivered, false otherwise.
  */
-bool ReceiverLink::deliver(uint32_t m_seq)
+std::vector<bool> ReceiverLink::respond(Message message)
 {
-  if (m_seq > last_delivered + 1) {
-    throw std::runtime_error("Window with size >1 receive not implemented yet.");
+  // Update delivered message set and construct delivery status vector
+  std::vector<bool> delivery_status;
+  for (uint32_t m_seq: message.getSeqs()) {
+    auto result = deliveredMessages.insert(m_seq);
+    delivery_status.push_back(result.second); // true if inserted (not delivered before), false otherwise
   }
 
-  if (m_seq == last_delivered + 1) {
-    last_delivered = m_seq;
-
-    // Transform message sequence number into big-endian for network transport
-    std::vector<char> buffer = encodeMessage(m_seq, ACK);
-
-    // Send ACK to sender
-    if (sendto(socket, buffer.data(), Link::buffer_size, 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
-      std::ostringstream os;
-      os << "Failed to send ACK " << m_seq << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
-      throw std::runtime_error(os.str());
-    }
-
-    return true;
+  // Remove leading delivered messages to avoid unbounded growth
+  std::set<uint32_t>::iterator it = deliveredMessages.begin();
+  uint32_t last_seq = *it - 1;
+  while (it != deliveredMessages.end() && *it == last_seq + 1) {
+    last_seq = *it;
+    it = deliveredMessages.erase(it);
   }
-  return false;
+
+  // Transform message to ack and serialize
+  Message ackMsg = message.toAck();
+
+  // Send ACK to sender
+  if (sendto(socket, ackMsg.serialize(), ackMsg.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
+    std::ostringstream os;
+    os << "Failed to send ACK (errno: " << strerror(errno) << ") from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
+    throw std::runtime_error(os.str());
+  }
+  return delivery_status;
 }
