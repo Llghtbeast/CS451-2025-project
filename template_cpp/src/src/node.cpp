@@ -143,6 +143,16 @@ void Node::listen()
   }
 }
 
+void Node::log() {
+  // Listen while the run flag is set
+  while (runFlag.load())
+  {
+    // Periodically write log entries to file
+    logger->write();
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  }
+}
+
 /**
  * Starts the node's sending and listening threads.
  */
@@ -158,6 +168,7 @@ void Node::start()
   // start worker threads bound to this instance
   sender_thread = std::thread(&Node::send, this);
   listener_thread = std::thread(&Node::listen, this);
+  logger_thread = std::thread(&Node::log, this);
 }
 
 /**
@@ -177,6 +188,7 @@ void Node::terminate()
   // join threads (wait for loops to exit)
   if (sender_thread.joinable()) sender_thread.join();
   if (listener_thread.joinable()) listener_thread.join();
+  if (logger_thread.joinable()) logger_thread.join();
 }
 
 /**
@@ -194,5 +206,6 @@ void Node::cleanup()
 void Node::flushToOutput() 
 {
   // Flush output stream to ensure all received messages are logged.
+  logger->write();
   logger->flush();
 }

@@ -25,14 +25,17 @@
 class Node {
 public:  
   Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
-  void send();
-  void listen();
   void start();
   void enqueueMessage(sockaddr_in dest);
   void terminate();
   void cleanup();  
   void flushToOutput();
 
+private:
+  void send();
+  void listen();
+  void log();
+  
 private:
   long unsigned int id;
   long unsigned int recv_id;
@@ -49,4 +52,5 @@ private:
 
   std::thread sender_thread;
   std::thread listener_thread;
+  std::thread logger_thread;
 };

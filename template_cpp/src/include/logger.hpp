@@ -8,6 +8,7 @@
 #include <atomic>
 #include <fstream>
 #include <sstream>
+#include <iostream>
 
 class Logger {
 public:
@@ -15,16 +16,14 @@ public:
   ~Logger();
 
   void logBroadcast(uint32_t seq);
-  void logDelivery(uint32_t sender_id, uint32_t seq);
+  void logDelivery(uint64_t sender_id, uint32_t seq);
   
-  void start();
+  void write();
   void flush();
   void cleanup();
   
   private:
   void enqueueLine(const std::string &line);
-  void workerLoop();
-  void writeLog(std::vector<std::string> &local, std::unique_lock<std::mutex> &lk);
 
   std::ofstream log_file;
   std::vector<std::string> queue;

@@ -37,21 +37,11 @@ void Logger::logBroadcast(uint32_t seq)
  * @param sender_id The ID of the sender.
  * @param seq The sequence number of the delivered message.
  */
-void Logger::logDelivery(uint32_t sender_id, uint32_t seq)
+void Logger::logDelivery(uint64_t sender_id, uint32_t seq)
 {
   std::ostringstream os;
   os << "d " << sender_id << " " << seq;
   enqueueLine(os.str());
-}
-
-/**
- * Starts the logger's worker loop
- */
-void Logger::start()
-{
-  // Start running worker loop
-  running.store(true);
-  workerLoop();
 }
 
 /**
@@ -69,12 +59,6 @@ void Logger::enqueueLine(const std::string &line)
  */
 void Logger::flush()
 {
-  std::vector<std::string> local;
-  std::unique_lock<std::mutex> lk(mutex);
-
-  // Write enqueued lines to log file
-  writeLog(local, lk);
-  
   // ensure file is flushed
   if (log_file.is_open()) log_file.flush();
 }
@@ -89,33 +73,16 @@ void Logger::cleanup()
 }
 
 /**
- * Worker loop that continuously writes enqueued log lines to the log file while running.
+ * Writes enqueued log lines to the log file.
  */
-void Logger::workerLoop()
+void Logger::write()
 {
   std::vector<std::string> local;
-  std::unique_lock<std::mutex> lk {mutex, std::defer_lock};
-
-  while (running.load()) {
-    // Write enqueued lines to log file
-    writeLog(local, lk);
-    
-    // Wait. Periodically wake up to check if lines are enqueued to be logged.
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  }
-}
-
-/**
- * Writes enqueued log lines to the log file.
- * @param local A local buffer to swap with the shared queue.
- * @param lk A unique lock for synchronizing access to the shared queue.
- */
-void Logger::writeLog(std::vector<std::string> &local, std::unique_lock<std::mutex> &lk)
-{
   // swap shared queue into local buffer under lock
-  lk.lock();
-  local.swap(queue);
-  lk.unlock();
+  {
+    std::lock_guard<std::mutex> lk(mutex);
+    local.swap(queue);
+  }
 
   if (!local.empty() && log_file.is_open()) {
     // accumulate into one string to minimize syscalls
