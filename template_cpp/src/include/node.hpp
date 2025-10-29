@@ -17,6 +17,7 @@
 #include "link.hpp"
 #include "helper.hpp"
 #include "message.hpp"
+#include "logger.hpp"
 
 /**
  * Implementation of a network node that can send and receive messages.
@@ -35,7 +36,7 @@ public:
 private:
   long unsigned int id;
   long unsigned int recv_id;
-  std::ofstream output;
+  std::unique_ptr<Logger> logger;
   std::atomic_bool runFlag;
 
   int node_socket;

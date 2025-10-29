@@ -8,7 +8,7 @@
  * @param outputPath The path to the output file where messages will be logged.
  */
 Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath)
-  : id(id), recv_id(receiver_id), output(outputPath)
+  : id(id), recv_id(receiver_id), logger(std::make_unique<Logger>(outputPath))
   {
     // Initialize run flag
     runFlag.store(false);
@@ -64,7 +64,7 @@ void Node::enqueueMessage(sockaddr_in dest)
   // Transform message sequence number into big-endian for network transport
     std::string dest_str = ipAddressToString(dest);
     uint32_t seq = sendLinks[dest_str]->enqueueMessage();
-    output << "b " << seq << "\n";
+    logger->logBroadcast(seq);
 }
 
 /**
@@ -86,6 +86,9 @@ void Node::send()
   }
 }
 
+/**
+ * Message listening loop that continuously listens for incoming messages and processes them while the run flag is set.
+ */
 void Node::listen()
 {
   // Listen while the run flag is set
@@ -123,7 +126,7 @@ void Node::listen()
         bool was_delivered = delivered[i];
         if (was_delivered) {
           std::cout << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
-          output << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
+          logger->logDelivery(others_id[sender_ip_and_port], m_seq);
         }
       }
     }
@@ -140,6 +143,9 @@ void Node::listen()
   }
 }
 
+/**
+ * Starts the node's sending and listening threads.
+ */
 void Node::start()
 {
   // avoid starting multiple times
@@ -154,12 +160,15 @@ void Node::start()
   listener_thread = std::thread(&Node::listen, this);
 }
 
-
+/**
+ * Terminates the node's sending and listening threads.
+ */
 void Node::terminate()
 {
   // Stop the node's sending and listening threads (finish execution and exit)
   runFlag.store(false);
 
+  // flush standard output to debug
   std::cout << std::endl;
 
   // unblock recvfrom if it's blocked
@@ -170,14 +179,20 @@ void Node::terminate()
   if (listener_thread.joinable()) listener_thread.join();
 }
 
+/**
+ * Cleans up resources used by the node, including closing the socket and output file.
+ */
 void Node::cleanup() 
 {
   close(node_socket);
-  output.close();
+  logger->cleanup();
 }
-  
+
+/**
+ * Flushes the output stream to ensure all received messages are logged.
+ */
 void Node::flushToOutput() 
 {
-  // Print termination to file and close resources
-  output << "Process " << id << " terminated.\n";
+  // Flush output stream to ensure all received messages are logged.
+  logger->flush();
 }

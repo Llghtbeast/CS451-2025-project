@@ -69,12 +69,11 @@ void SenderLink::send()
 
     // Transform message sequence number into big-endian for network transport
     Message message(MES, nb_msgs, msgs);
-    std::cout << messageQueue.size() << " messages in queue. " << std::endl;
     std::cout << "Sending message with seq numbers: ";
     for (uint32_t seq: msgs) {
       std::cout << seq << " ";
     }
-    std::cout << std::endl;
+    std::cout << "\n";
   
     // Send message to receiver
     if (sendto(socket, message.serialize(), message.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
@@ -83,7 +82,6 @@ void SenderLink::send()
       throw std::runtime_error(os.str());
     }
   }
-
 }
 
 /** 
