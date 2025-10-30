@@ -7,7 +7,7 @@
  */
 Logger::Logger(const std::string &path)
 {
-  log_file.open(path, std::ios::out | std::ios::app);
+  log_file.open(path, std::ios::out);
   if (!log_file.is_open()) {
     throw std::runtime_error("Logger: failed to open log file: " + path);
   }
@@ -77,7 +77,8 @@ void Logger::cleanup()
  */
 void Logger::write()
 {
-  std::vector<std::string> local;
+  std::cout << queue.size() << " log lines to write." << std::endl;
+  std::vector<std::string> local {};
   // swap shared queue into local buffer under lock
   {
     std::lock_guard<std::mutex> lk(mutex);

@@ -110,7 +110,7 @@ void SenderLink::receiveAck(std::vector<uint32_t> acked_messages)
  * @param dest_addr The address from which messages will be received.
  */
 ReceiverLink::ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Link(socket, source_addr, dest_addr), deliveredMessages({})
+  : Link(socket, source_addr, dest_addr), deliveredMessages({0})
 {}
 
 /**
@@ -120,20 +120,33 @@ ReceiverLink::ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest
  */
 std::vector<bool> ReceiverLink::respond(Message message)
 {
+  std::cout << "Delivered messages set: ";
+  for (uint32_t seq: deliveredMessages) {
+    std::cout << seq << " ";
+  }
+  std::cout << "\n";
+
   // Update delivered message set and construct delivery status vector
   std::vector<bool> delivery_status;
+  std::set<uint32_t>::iterator it = deliveredMessages.begin();
   for (uint32_t m_seq: message.getSeqs()) {
-    auto result = deliveredMessages.insert(m_seq);
-    delivery_status.push_back(result.second); // true if inserted (not delivered before), false otherwise
+    if (m_seq < *it) {
+      delivery_status.push_back(false); // already delivered
+    }
+    else {
+      auto result = deliveredMessages.insert(m_seq);
+      delivery_status.push_back(result.second); // true if inserted (not delivered before), false otherwise
+    }
+    std::cout << "Received message with seq number: " << m_seq << " delivered: " << *delivery_status.end() << ". Delivered set size: " << deliveredMessages.size() << "\n";
   }
 
   // Remove leading delivered messages to avoid unbounded growth
-  std::set<uint32_t>::iterator it = deliveredMessages.begin();
-  uint32_t last_seq = *it - 1;
-  while (it != deliveredMessages.end() && *it == last_seq + 1) {
-    last_seq = *it;
-    it = deliveredMessages.erase(it);
+  while (it != deliveredMessages.end()) {
+    if (*it + 1 != *(++it)) {
+      break;
+    }
   }
+  deliveredMessages.erase(deliveredMessages.begin(), --it);
 
   // Transform message to ack and serialize
   Message ackMsg = message.toAck();
