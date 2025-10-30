@@ -45,6 +45,9 @@ private:
 
   std::condition_variable queue_cv;
   std::mutex queue_mutex;
+
+  bool all_msg_enqueued = false;
+  bool all_msg_delivered = false;
 };
 
 /**

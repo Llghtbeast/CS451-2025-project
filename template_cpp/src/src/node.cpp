@@ -145,6 +145,9 @@ void Node::listen()
   }
 }
 
+/**
+ * Logger thread function that periodically writes log entries to the log file while the run flag is set.
+ */
 void Node::log() {
   // Listen while the run flag is set
   while (runFlag.load())
