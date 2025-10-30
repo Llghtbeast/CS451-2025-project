@@ -82,7 +82,7 @@ void Node::send()
 
     // Sleep for a short duration to avoid busy-waiting (waiting for messages to be enqueued)
     // For optimal performance, could try to design a congestion control algorithm to adjust sending rate based on network conditions
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
   }
 }
 
@@ -133,9 +133,11 @@ void Node::listen()
     else if (type == ACK) {
       // Process ACK on sender link
       sendLinks[sender_ip_and_port]->receiveAck(messages);
+      std::cout << "Processed ACK for messages: ";
       for (uint32_t m_seq: messages) {
-        std::cout << "ACK " << m_seq << " processed.\n";
-      }
+        std::cout << m_seq << " ";
+        }
+      std::cout << "\n";
     }
     else {
       throw std::runtime_error("Unknown message type received.");
@@ -149,7 +151,7 @@ void Node::log() {
   {
     // Periodically write log entries to file
     logger->write();
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
 }
 

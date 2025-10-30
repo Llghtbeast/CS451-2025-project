@@ -25,7 +25,7 @@ protected:
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
 public:
-  static constexpr uint32_t window_size = 1; // TODO: increase window size for performance, need to implement more complex logic
+  static constexpr uint32_t window_size = 5; // TODO: increase window size for performance, need to implement more complex logic
 };
 
 /**
@@ -41,7 +41,7 @@ public:
 private:
   uint32_t m_seq = 0;
   std::set<uint32_t> messageQueue;
-  size_t maxQueueSize = window_size * 100;
+  size_t maxQueueSize = Message::max_msgs * window_size * 100;
 
   std::condition_variable queue_cv;
   std::mutex queue_mutex;

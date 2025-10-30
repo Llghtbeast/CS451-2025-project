@@ -59,7 +59,7 @@ void SenderLink::send()
   // set up for message iterator and send failure array
   std::set<uint32_t>::iterator it = messageQueue.begin();
   
-  for (uint32_t i = 0; i < window_size && it != messageQueue.end(); i++, it++) {
+  for (uint32_t i = 0; i < window_size; i++, it++) {
     std::vector<uint32_t> msgs;
 
     uint8_t nb_msgs = 0;
@@ -80,6 +80,11 @@ void SenderLink::send()
       std::ostringstream os;
       os << "Failed to send message " << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
       throw std::runtime_error(os.str());
+    }
+
+    // Terminate if all messages have been sent
+    if (it == messageQueue.end()) {
+      break;
     }
   }
 }
@@ -132,12 +137,13 @@ std::vector<bool> ReceiverLink::respond(Message message)
   for (uint32_t m_seq: message.getSeqs()) {
     if (m_seq < *it) {
       delivery_status.push_back(false); // already delivered
+      std::cout << "Received message with seq number: " << m_seq << " delivered: " << false << ". Delivered set size: " << deliveredMessages.size() << "\n";
     }
     else {
       auto result = deliveredMessages.insert(m_seq);
       delivery_status.push_back(result.second); // true if inserted (not delivered before), false otherwise
+      std::cout << "Received message with seq number: " << m_seq << " delivered: " << result.second << ". Delivered set size: " << deliveredMessages.size() << "\n";
     }
-    std::cout << "Received message with seq number: " << m_seq << " delivered: " << *delivery_status.end() << ". Delivered set size: " << deliveredMessages.size() << "\n";
   }
 
   // Remove leading delivered messages to avoid unbounded growth
