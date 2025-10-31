@@ -31,6 +31,9 @@ public:
   void cleanup();  
   void flushToOutput();
 
+  void allMessagesEnqueued(sockaddr_in dest);
+  void finished(sockaddr_in dest);
+
 private:
   void send();
   void listen();

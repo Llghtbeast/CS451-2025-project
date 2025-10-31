@@ -59,7 +59,7 @@ void SenderLink::send()
   // set up for message iterator and send failure array
   std::set<uint32_t>::iterator it = messageQueue.begin();
   
-  for (uint32_t i = 0; i < window_size; i++, it++) {
+  for (uint32_t i = 0; i < window_size; i++) {
     std::vector<uint32_t> msgs;
 
     uint8_t nb_msgs = 0;
@@ -106,6 +106,26 @@ void SenderLink::receiveAck(std::vector<uint32_t> acked_messages)
   // Notify the waiting enqueuer thread that space is available in the queue
   lock.unlock();
   queue_cv.notify_one();
+  
+  all_msg_delivered = messageQueue.empty();
+  // Notify finished condition variable to maybe signal completion to main thread
+  finished_cv.notify_one();
+}
+
+void SenderLink::allMessagesEnqueued() {
+  std::lock_guard<std::mutex> lock(finished_mutex);
+  all_msg_enqueued = true;
+}
+
+void SenderLink::finished() {
+  std::unique_lock<std::mutex> lock(finished_mutex);
+  finished_cv.wait(lock, [&]() {
+    return all_msg_enqueued && all_msg_delivered;
+  });
+
+  // Unlock and return to signal main thread of completion 
+  lock.unlock();
+  return;
 }
 
 /**

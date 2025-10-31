@@ -25,7 +25,7 @@ protected:
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
 public:
-  static constexpr uint32_t window_size = 5; // TODO: increase window size for performance, need to implement more complex logic
+  static constexpr uint32_t window_size = 8; // TODO: increase window size for performance, need to implement more complex logic
 };
 
 /**
@@ -37,6 +37,8 @@ public:
   uint32_t enqueueMessage();
   void send();
   void receiveAck(std::vector<uint32_t> acked_messages);
+  void allMessagesEnqueued();
+  void finished();
 
 private:
   uint32_t m_seq = 0;
@@ -46,6 +48,8 @@ private:
   std::condition_variable queue_cv;
   std::mutex queue_mutex;
 
+  std::mutex finished_mutex;
+  std::condition_variable finished_cv;
   bool all_msg_enqueued = false;
   bool all_msg_delivered = false;
 };

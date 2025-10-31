@@ -196,6 +196,16 @@ void Node::terminate()
   if (logger_thread.joinable()) logger_thread.join();
 }
 
+void Node::allMessagesEnqueued(sockaddr_in dest) {
+  std::string dest_str = ipAddressToString(dest);
+  sendLinks[dest_str]->allMessagesEnqueued();
+}
+
+void Node::finished(sockaddr_in dest) {
+  std::string dest_str = ipAddressToString(dest);
+  sendLinks[dest_str]->finished();
+}
+
 /**
  * Cleans up resources used by the node, including closing the socket and output file.
  */
