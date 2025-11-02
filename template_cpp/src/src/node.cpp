@@ -82,7 +82,7 @@ void Node::send()
 
     // Sleep for a short duration to avoid busy-waiting (waiting for messages to be enqueued)
     // For optimal performance, could try to design a congestion control algorithm to adjust sending rate based on network conditions
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(5));
   }
 }
 

@@ -25,7 +25,7 @@ protected:
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
 public:
-  static constexpr uint32_t window_size = 8; // TODO: increase window size for performance, need to implement more complex logic
+  static constexpr uint32_t window_size = 32; // TODO: increase window size for performance, need to implement more complex logic
 };
 
 /**
