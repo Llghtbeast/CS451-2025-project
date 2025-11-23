@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
   std::cout << "Broadcasting and delivering messages...\n\n";
 
   // Create senders and receiver
-  Node node(hosts, parser.id(), recv_id, parser.outputPath());
+  Node node(hosts, parser.id(), parser.outputPath());
   p_node = &node;
   
   

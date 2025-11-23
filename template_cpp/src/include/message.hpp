@@ -14,9 +14,10 @@ enum MessageType : uint8_t {
 
 class Message {
 public:
-  Message(MessageType type, uint8_t nb_m, std::vector<uint32_t> seqs);
+  Message(MessageType type, unsigned long origin_id, uint8_t nb_m, std::vector<uint32_t> seqs);
 
   MessageType getType() const;
+  unsigned long getOriginId() const;
   uint8_t getNbMes() const;
   const std::vector<uint32_t> getSeqs() const;
 
@@ -31,6 +32,7 @@ public:
 
 private:
   MessageType m_type;
+  unsigned long origin_id;
   uint8_t nb_mes; // maximum 8 messages per Message
   std::vector<uint32_t> seqs;
 

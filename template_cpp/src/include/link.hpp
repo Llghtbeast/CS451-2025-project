@@ -9,45 +9,48 @@
 #include <condition_variable>
 #include <mutex>
 #include <errno.h>
+#include <memory>
 
 #include "parser.hpp"
 #include "message.hpp"
+#include "logger.hpp"
 
 /**
- * Base class representing the endpoints of a communication link with send and receive capabilities.
+ * Derived class representing a sender endpoint of a communication link.
  */
-class Link {
-public:
-  Link(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
-
-protected:
+class Port {
+  public:
+  Port(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
+  protected:
   int socket;
+  unsigned long source_id;
   sockaddr_in source_addr;
+  unsigned long dest_id;
   sockaddr_in dest_addr;
-public:
-  static constexpr uint32_t window_size = 32; // TODO: increase window size for performance, need to implement more complex logic
+  public:
+  static constexpr uint32_t window_size = 8; 
 };
 
 /**
  * Derived class representing a sender endpoint of a communication link with message queuing and sending capabilities.
  */
-class SenderLink : public Link {
+class SenderPort: public Port {
 public:
-  SenderLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
+  SenderPort(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
   uint32_t enqueueMessage();
   void send();
   void receiveAck(std::vector<uint32_t> acked_messages);
   void allMessagesEnqueued();
   void finished();
-
-private:
+  
+  private:
   uint32_t m_seq = 0;
   std::set<uint32_t> messageQueue;
   size_t maxQueueSize = Message::max_msgs * window_size * 100;
-
+  
   std::condition_variable queue_cv;
   std::mutex queue_mutex;
-
+  
   std::mutex finished_mutex;
   std::condition_variable finished_cv;
   bool all_msg_enqueued = false;
@@ -57,11 +60,30 @@ private:
 /**
  * Derived class representing a receiver endpoint of a communication link with message receiving and delivering capabilities.
  */
-class ReceiverLink : public Link {
-public:
-  ReceiverLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
+class ReceiverPort: public Port {
+  public:
+  ReceiverPort(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
   std::vector<bool> respond(Message messages);
+  
+  private:
+  std::set<uint32_t> deliveredMessages;
+};
+
+/**
+ * Base class representing the endpoints of a perfect link implementation with send and receive capabilities.
+ */
+class PerfectLink {
+public:
+  PerfectLink(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
+
+  uint32_t enqueueMessage();
+  void send();
+  void receive(Message mes, Logger &logger);
+
+  void allMessagesEnqueued();
+  void finished();
 
 private:
-  std::set<uint32_t> deliveredMessages;
+  SenderPort sendPort;
+  ReceiverPort recvPort;
 };

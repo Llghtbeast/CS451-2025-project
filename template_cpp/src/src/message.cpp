@@ -1,7 +1,8 @@
 #include "message.hpp"
+#include <endian.h>
 
-Message::Message(MessageType type, uint8_t nb_m, std::vector<uint32_t> seqs)
-  : m_type(type), nb_mes(nb_m), seqs(seqs)
+Message::Message(MessageType type, unsigned long origin_id, uint8_t nb_m, std::vector<uint32_t> seqs)
+  : m_type(type), origin_id(origin_id), nb_mes(nb_m), seqs(seqs)
 {
   // basic validation
   if (nb_mes != seqs.size()) {
@@ -9,22 +10,23 @@ Message::Message(MessageType type, uint8_t nb_m, std::vector<uint32_t> seqs)
   }
 }
 
-MessageType Message::getType() const { return m_type; }
-uint8_t Message::getNbMes() const { return nb_mes; }
-const std::vector<uint32_t> Message::getSeqs() const { return seqs; }
+MessageType Message::getType() const                  { return m_type; }
+unsigned long Message::getOriginId() const            { return origin_id; }
+uint8_t Message::getNbMes() const                     { return nb_mes; }
+const std::vector<uint32_t> Message::getSeqs() const  { return seqs; }
 
 /** 
  * Convert message to ACK type
  */
 Message Message::toAck()
 {
-  Message new_msg = Message(ACK, nb_mes, seqs);
+  Message new_msg = Message(ACK, origin_id, nb_mes, seqs);
   return new_msg;
 }
 
 size_t Message::serializedSize() const 
 {
-  return 1 + 1 + nb_mes * sizeof(uint32_t); // type + nb_mes + seqs
+  return 1 + sizeof(origin_id) + 1 + nb_mes * sizeof(uint32_t); // type + origin_id(8) + nb_mes + seqs
 }
 
 /**
@@ -34,20 +36,28 @@ size_t Message::serializedSize() const
 const char *Message::serialize() const
 {
   serialized_buffer.clear();
+  serialized_buffer.reserve(serializedSize());
 
-  // header: type (1 byte) + nb_mes (1 byte)
+  // header: type (1 byte)
   serialized_buffer.push_back(static_cast<char>(m_type));
+
+  // origin_id in network (big-endian) order (8 bytes)
+  uint64_t net_id = htobe64(static_cast<uint64_t>(origin_id));
+  char id_bytes[sizeof(net_id)];
+  std::memcpy(id_bytes, &net_id, sizeof(net_id));
+  serialized_buffer.insert(serialized_buffer.end(), id_bytes, id_bytes + sizeof(net_id));
+
+  // nb_mes (1 byte)
   serialized_buffer.push_back(static_cast<char>(nb_mes));
 
+  // seqs (each 4 bytes big-endian)
   for (size_t i = 0; i < nb_mes; ++i) {
-    // sequence number in network byte order
     uint32_t net_seq = htonl(seqs[i]);
-    char seq_bytes[4];
+    char seq_bytes[sizeof(net_seq)];
     std::memcpy(seq_bytes, &net_seq, sizeof(net_seq));
     serialized_buffer.insert(serialized_buffer.end(), seq_bytes, seq_bytes + sizeof(net_seq));
   }
 
-  // Return pointer to the internal buffer (valid until next non-const serialize() call)
   return serialized_buffer.data();
 }
 
@@ -58,16 +68,24 @@ Message Message::deserialize(const char * buffer)
   const unsigned char *ptr = reinterpret_cast<const unsigned char *>(buffer);
   size_t offset = 0;
 
-  // type + nb_mes
+  // type (1 byte)
   MessageType type = static_cast<MessageType>(ptr[offset]);
   offset += 1;
+
+  // origin_id (8 bytes, big-endian)
+  uint64_t net_id;
+  std::memcpy(&net_id, ptr + offset, sizeof(net_id));
+  offset += sizeof(net_id);
+  unsigned long origin_id = static_cast<unsigned long>(be64toh(net_id));
+
+  // nb_mes (1 byte)
   uint8_t nb = static_cast<uint8_t>(ptr[offset]);
   offset += 1;
 
   std::vector<uint32_t> seqs_out;
+  seqs_out.reserve(nb);
 
   for (uint8_t i = 0; i < nb; ++i) {
-    // read seq
     uint32_t net_seq;
     std::memcpy(&net_seq, ptr + offset, sizeof(net_seq));
     offset += sizeof(net_seq);
@@ -75,5 +93,5 @@ Message Message::deserialize(const char * buffer)
     seqs_out.push_back(seq);
   }
 
-  return Message(type, nb, seqs_out);
+  return Message(type, origin_id, nb, seqs_out);
 }

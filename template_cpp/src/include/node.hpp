@@ -24,7 +24,7 @@
  */
 class Node {
 public:  
-  Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath);
+  Node(std::vector<Parser::Host> nodes, long unsigned int id, std::string outputPath);
   void start();
   void enqueueMessage(sockaddr_in dest);
   void terminate();
@@ -41,7 +41,6 @@ private:
   
 private:
   long unsigned int id;
-  long unsigned int recv_id;
   std::unique_ptr<Logger> logger;
   std::atomic_bool runFlag;
 
@@ -49,9 +48,7 @@ private:
   sockaddr_in node_addr;
 
   std::unordered_map< std::string, uint64_t> others_id;
-  std::unordered_map<std::string, std::unique_ptr<SenderLink>> sendLinks;
-  std::unordered_map<std::string, std::unique_ptr<ReceiverLink>> recvLinks;
-  sockaddr_in recv_addr; // TODO: remove for later implementations
+  std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
   std::thread sender_thread;
   std::thread listener_thread;

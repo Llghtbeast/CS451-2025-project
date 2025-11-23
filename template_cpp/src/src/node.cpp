@@ -7,8 +7,8 @@
  * @param receiver_id The unique identifier for the network's receiver node.
  * @param outputPath The path to the output file where messages will be logged.
  */
-Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned int receiver_id, std::string outputPath)
-  : id(id), recv_id(receiver_id), logger(std::make_unique<Logger>(outputPath))
+Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, std::string outputPath)
+  : id(id), logger(std::make_unique<Logger>(outputPath))
   {
     // Initialize run flag
     runFlag.store(false);
@@ -36,10 +36,6 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
       std::cout << "Socket bound to address " << node.ipReadable() << ":" << node.portReadable() << "\n";
     }
 
-    // Set up receiver address
-    Parser::Host receiver = nodes[receiver_id - 1];
-    recv_addr = setupIpAddress(receiver);
-
     // Create sender id map
     for (Parser::Host n: nodes) {
       if (n.id != id) {
@@ -49,8 +45,7 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, long unsigned 
         others_id[addr_hashable] = n.id;
 
         // Create network links
-        sendLinks[addr_hashable] = std::make_unique<SenderLink>(node_socket, node_addr, n_addr);
-        recvLinks[addr_hashable] = std::make_unique<ReceiverLink>(node_socket, node_addr, n_addr);
+        links[addr_hashable] = std::make_unique<PerfectLink>(node_socket, node_addr, n_addr);
       }
     }
   }
@@ -63,7 +58,7 @@ void Node::enqueueMessage(sockaddr_in dest)
 {
   // Transform message sequence number into big-endian for network transport
     std::string dest_str = ipAddressToString(dest);
-    uint32_t seq = sendLinks[dest_str]->enqueueMessage();
+    uint32_t seq = links[dest_str]->enqueueMessage();
     logger->logBroadcast(seq);
 }
 
@@ -75,7 +70,7 @@ void Node::send()
   while (runFlag.load())
   {
     // Try sending messages from all sender links
-    for (auto &pair: sendLinks) {
+    for (auto &pair: links) {
       // Send messages enqueued on each sender link
       pair.second->send();
     }
@@ -112,36 +107,11 @@ void Node::listen()
 
     // Decode message
     Message msg = Message::deserialize(buffer.data());
-    std::vector<uint32_t> messages = msg.getSeqs();
-    MessageType type = msg.getType();
     
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     std::cout << "message received from " << sender_ip_and_port << "\n";
-    
-    if (type == MES) {
-      // Deliver message to receiver link
-      std::vector<bool> delivered = recvLinks[sender_ip_and_port]->respond(msg);
-      for (size_t i = 0; i < messages.size(); i++) {
-        uint32_t m_seq = messages[i];
-        bool was_delivered = delivered[i];
-        if (was_delivered) {
-          std::cout << "d " << others_id[sender_ip_and_port] << " " << m_seq << "\n";
-          logger->logDelivery(others_id[sender_ip_and_port], m_seq);
-        }
-      }
-    }
-    else if (type == ACK) {
-      // Process ACK on sender link
-      sendLinks[sender_ip_and_port]->receiveAck(messages);
-      std::cout << "Processed ACK for messages: ";
-      for (uint32_t m_seq: messages) {
-        std::cout << m_seq << " ";
-        }
-      std::cout << "\n";
-    }
-    else {
-      throw std::runtime_error("Unknown message type received.");
-    }
+  
+    links[sender_ip_and_port]->receive(msg, *logger);
   }
 }
 
@@ -198,12 +168,12 @@ void Node::terminate()
 
 void Node::allMessagesEnqueued(sockaddr_in dest) {
   std::string dest_str = ipAddressToString(dest);
-  sendLinks[dest_str]->allMessagesEnqueued();
+  links[dest_str]->allMessagesEnqueued();
 }
 
 void Node::finished(sockaddr_in dest) {
   std::string dest_str = ipAddressToString(dest);
-  sendLinks[dest_str]->finished();
+  links[dest_str]->finished();
 }
 
 /**
