@@ -19,15 +19,16 @@
  * Derived class representing a sender endpoint of a communication link.
  */
 class Port {
-  public:
-  Port(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
-  protected:
+public:
+  Port(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
+
+protected:
   int socket;
   unsigned long source_id;
   sockaddr_in source_addr;
-  unsigned long dest_id;
   sockaddr_in dest_addr;
-  public:
+
+public:
   static constexpr uint32_t window_size = 8; 
 };
 
@@ -36,7 +37,7 @@ class Port {
  */
 class SenderPort: public Port {
 public:
-  SenderPort(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
+  SenderPort(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
   uint32_t enqueueMessage();
   void send();
   void receiveAck(std::vector<uint32_t> acked_messages);
@@ -62,7 +63,7 @@ public:
  */
 class ReceiverPort: public Port {
   public:
-  ReceiverPort(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
+  ReceiverPort(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
   std::vector<bool> respond(Message messages);
   
   private:
@@ -74,12 +75,13 @@ class ReceiverPort: public Port {
  */
 class PerfectLink {
 public:
-  PerfectLink(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr);
+  PerfectLink(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
 
   uint32_t enqueueMessage();
   void send();
-  void receive(Message mes, Logger &logger);
+  std::vector<bool> receive(Message mes);
 
+  // Functions for measuring performance of solution
   void allMessagesEnqueued();
   void finished();
 

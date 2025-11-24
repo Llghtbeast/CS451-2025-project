@@ -45,7 +45,7 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, std::string ou
         others_id[addr_hashable] = n.id;
 
         // Create network links
-        links[addr_hashable] = std::make_unique<PerfectLink>(node_socket, node_addr, n_addr);
+        links[addr_hashable] = std::make_unique<PerfectLink>(node_socket, id, node_addr, n_addr);
       }
     }
   }
@@ -57,9 +57,9 @@ Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, std::string ou
 void Node::enqueueMessage(sockaddr_in dest)
 {
   // Transform message sequence number into big-endian for network transport
-    std::string dest_str = ipAddressToString(dest);
-    uint32_t seq = links[dest_str]->enqueueMessage();
-    logger->logBroadcast(seq);
+  std::string dest_str = ipAddressToString(dest);
+  uint32_t seq = links[dest_str]->enqueueMessage();
+  logger->logBroadcast(seq);
 }
 
 /**
@@ -111,7 +111,16 @@ void Node::listen()
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     std::cout << "message received from " << sender_ip_and_port << "\n";
   
-    links[sender_ip_and_port]->receive(msg, *logger);
+    // Deliver message
+    std::vector<bool> received_msgs = links[sender_ip_and_port]->receive(msg);
+    if (!received_msgs.empty()) {
+      for (size_t i = 0; i < msg.getNbMes(); i++) {
+        if (received_msgs[i]) {
+          uint32_t seq = msg.getSeqs()[i];
+          logger->logDelivery(msg.getOriginId(), seq);
+        }
+      }
+    }
   }
 }
 

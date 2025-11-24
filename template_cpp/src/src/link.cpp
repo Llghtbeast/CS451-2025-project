@@ -7,8 +7,8 @@
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-Port::Port(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr) 
-  : socket(socket), source_id(source_id), source_addr(source_addr), dest_id(dest_id), dest_addr(dest_addr) {}
+Port::Port(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr) 
+  : socket(socket), source_id(source_id), source_addr(source_addr), dest_addr(dest_addr) {}
 
 /**
  * Constructor to initialize the SenderPort with a socket and its send and receive addresses.
@@ -16,8 +16,8 @@ Port::Port(int socket, unsigned long source_id, sockaddr_in source_addr, unsigne
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-SenderPort::SenderPort(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr)
-  : Port(socket, source_id, source_addr, dest_id, dest_addr)
+SenderPort::SenderPort(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : Port(socket, source_id, source_addr, dest_addr)
 {
   messageQueue = {};
 }
@@ -137,8 +137,8 @@ void SenderPort::finished() {
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-ReceiverPort::ReceiverPort(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr)
-  : Port(socket, source_id, source_addr, dest_id, dest_addr), deliveredMessages({0}) {}
+ReceiverPort::ReceiverPort(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : Port(socket, source_id, source_addr, dest_addr), deliveredMessages({0}) {}
 
 /**
  * Add message to delivered list, send ACK to sender, and return true if message was not already delivered. Otherwise, return false.
@@ -195,8 +195,8 @@ std::vector<bool> ReceiverPort::respond(Message message)
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-PerfectLink::PerfectLink(int socket, unsigned long source_id, sockaddr_in source_addr, unsigned long dest_id, sockaddr_in dest_addr)
-  : sendPort(socket, source_id, source_addr, dest_id, dest_addr), recvPort(socket, source_id, source_addr, dest_id, dest_addr) {}
+PerfectLink::PerfectLink(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : sendPort(socket, source_id, source_addr, dest_addr), recvPort(socket, source_id, source_addr, dest_addr) {}
 
 
 uint32_t PerfectLink::enqueueMessage()
@@ -209,23 +209,16 @@ void PerfectLink::send()
   return sendPort.send();
 }
 
-void PerfectLink::receive(Message mes, Logger &logger)
+std::vector<bool> PerfectLink::receive(Message mes)
 {
   unsigned long sender_id = mes.getOriginId();
   MessageType type = mes.getType();
   std::vector<uint32_t> messages = mes.getSeqs();
 
-  if (mes.getType() == MES) {
+  if (mes.getType() == MES) { 
     // Deliver message to receiver link
     std::vector<bool> received = recvPort.respond(mes);
-    for (size_t i = 0; i < messages.size(); i++) {
-      uint32_t m_seq = messages[i];
-      bool was_received = received[i];
-      if (was_received) {
-        std::cout << "d " << sender_id << " " << m_seq << "\n";
-        logger.logDelivery(sender_id, m_seq);
-      }
-    }
+    return received;
   }
   else if (type == ACK) {
     // Process ACK on sender link
@@ -235,6 +228,7 @@ void PerfectLink::receive(Message mes, Logger &logger)
       std::cout << m_seq << " ";
       }
     std::cout << "\n";
+    return {};
   }
   else {
     throw std::runtime_error("Unknown message type received.");
