@@ -9,6 +9,7 @@
 #include "parser.hpp"
 #include "node.hpp"
 #include "helper.hpp"
+#include "globals.hpp"
 
 static Node* p_node = nullptr;
 
@@ -94,7 +95,7 @@ int main(int argc, char **argv) {
 
   // Extract total number of messages sent by senders and id of receiver
   std::istringstream iss(config);
-  uint32_t total_m, recv_id;
+  msg_seq_t total_m, recv_id;
   if (!(iss >> total_m >> recv_id)) {
     throw std::invalid_argument("Error parsing integers from config file");
   }

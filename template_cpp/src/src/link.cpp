@@ -7,7 +7,7 @@
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-Port::Port(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr) 
+Port::Port(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr) 
   : socket(socket), source_id(source_id), source_addr(source_addr), dest_addr(dest_addr) {}
 
 /**
@@ -16,7 +16,7 @@ Port::Port(int socket, unsigned long source_id, sockaddr_in source_addr, sockadd
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-SenderPort::SenderPort(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
+SenderPort::SenderPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : Port(socket, source_id, source_addr, dest_addr)
 {
   messageQueue = {};
@@ -26,7 +26,7 @@ SenderPort::SenderPort(int socket, unsigned long source_id, sockaddr_in source_a
 * Enqueues a message to be sent later.
 * @param m_seq The sequence number of the message.
 */
-uint32_t SenderPort::enqueueMessage()
+msg_seq_t SenderPort::enqueueMessage()
 {  
   // Increment message sequence number
   m_seq++;
@@ -60,20 +60,25 @@ void SenderPort::send()
   }
 
   // set up for message iterator and send failure array
-  std::set<uint32_t>::iterator it = messageQueue.begin();
+  std::set<msg_seq_t>::iterator it = messageQueue.begin();
   
-  for (uint32_t i = 0; i < window_size; i++) {
-    std::vector<uint32_t> msgs;
+  for (size_t i = 0; i < window_size; i++) {
+    std::vector<msg_seq_t> msgs;
 
     uint8_t nb_msgs = 0;
     for (nb_msgs = 0; nb_msgs < Message::max_msgs && it != messageQueue.end(); nb_msgs++, it++) {
       msgs.push_back(*it);
     }
-
-    // Transform message sequence number into big-endian for network transport
+    
+    // Create message to send and display
+    std::cout << "\nMessage to send:\n";
     Message message(MES, source_id, nb_msgs, msgs);
+    Message::displayMessage(message);
+    Message::displaySerialized(message.serialize());
+    std::cout << std::endl;
+
     std::cout << "Sending message with seq numbers: ";
-    for (uint32_t seq: msgs) {
+    for (msg_seq_t seq: msgs) {
       std::cout << seq << " ";
     }
     std::cout << "\n";
@@ -85,8 +90,11 @@ void SenderPort::send()
       throw std::runtime_error(os.str());
     }
 
+    std::cout << "Message sent successfully.\n";
+
     // Terminate if all messages have been sent
     if (it == messageQueue.end()) {
+      std::cout << "All messages in queue sent.\n";
       break;
     }
   }
@@ -96,13 +104,13 @@ void SenderPort::send()
  * Receive ACK from receiver and removed corresponding message from queue.
  * @param m_seq The sequence number of the acknowledged message.
 */
-void SenderPort::receiveAck(std::vector<uint32_t> acked_messages)
+void SenderPort::receiveAck(std::vector<msg_seq_t> acked_messages)
 {
   // Lock the queue while modifying it
   std::unique_lock<std::mutex> lock(queue_mutex);
   
   // Remove message from queue (correctly delivered at target)
-  for (uint32_t seq: acked_messages) {
+  for (msg_seq_t seq: acked_messages) {
     messageQueue.erase(seq);
   }
   
@@ -137,7 +145,7 @@ void SenderPort::finished() {
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-ReceiverPort::ReceiverPort(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
+ReceiverPort::ReceiverPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : Port(socket, source_id, source_addr, dest_addr), deliveredMessages({0}) {}
 
 /**
@@ -148,15 +156,15 @@ ReceiverPort::ReceiverPort(int socket, unsigned long source_id, sockaddr_in sour
 std::vector<bool> ReceiverPort::respond(Message message)
 {
   std::cout << "Delivered messages set: ";
-  for (uint32_t seq: deliveredMessages) {
+  for (msg_seq_t seq: deliveredMessages) {
     std::cout << seq << " ";
   }
   std::cout << "\n";
 
   // Update delivered message set and construct delivery status vector
   std::vector<bool> delivery_status;
-  std::set<uint32_t>::iterator it = deliveredMessages.begin();
-  for (uint32_t m_seq: message.getSeqs()) {
+  std::set<msg_seq_t>::iterator it = deliveredMessages.begin();
+  for (msg_seq_t m_seq: message.getSeqs()) {
     if (m_seq < *it) {
       delivery_status.push_back(false); // already delivered
       std::cout << "Received message with seq number: " << m_seq << " delivered: " << false << ". Delivered set size: " << deliveredMessages.size() << "\n";
@@ -195,11 +203,11 @@ std::vector<bool> ReceiverPort::respond(Message message)
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-PerfectLink::PerfectLink(int socket, unsigned long source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
+PerfectLink::PerfectLink(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : sendPort(socket, source_id, source_addr, dest_addr), recvPort(socket, source_id, source_addr, dest_addr) {}
 
 
-uint32_t PerfectLink::enqueueMessage()
+msg_seq_t PerfectLink::enqueueMessage()
 {
   return sendPort.enqueueMessage();
 }
@@ -211,9 +219,9 @@ void PerfectLink::send()
 
 std::vector<bool> PerfectLink::receive(Message mes)
 {
-  unsigned long sender_id = mes.getOriginId();
+  proc_id_t sender_id = mes.getOriginId();
   MessageType type = mes.getType();
-  std::vector<uint32_t> messages = mes.getSeqs();
+  std::vector<msg_seq_t> messages = mes.getSeqs();
 
   if (mes.getType() == MES) { 
     // Deliver message to receiver link
@@ -224,7 +232,7 @@ std::vector<bool> PerfectLink::receive(Message mes)
     // Process ACK on sender link
     sendPort.receiveAck(messages);
     std::cout << "Processed ACK for messages: ";
-    for (uint32_t m_seq: messages) {
+    for (msg_seq_t m_seq: messages) {
       std::cout << m_seq << " ";
       }
     std::cout << "\n";

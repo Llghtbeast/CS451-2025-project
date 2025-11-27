@@ -7,7 +7,7 @@
  * @param receiver_id The unique identifier for the network's receiver node.
  * @param outputPath The path to the output file where messages will be logged.
  */
-Node::Node(std::vector<Parser::Host> nodes, long unsigned int id, std::string outputPath)
+Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath)
   : id(id), logger(std::make_unique<Logger>(outputPath))
   {
     // Initialize run flag
@@ -58,7 +58,7 @@ void Node::enqueueMessage(sockaddr_in dest)
 {
   // Transform message sequence number into big-endian for network transport
   std::string dest_str = ipAddressToString(dest);
-  uint32_t seq = links[dest_str]->enqueueMessage();
+  msg_seq_t seq = links[dest_str]->enqueueMessage();
   logger->logBroadcast(seq);
 }
 
@@ -77,7 +77,7 @@ void Node::send()
 
     // Sleep for a short duration to avoid busy-waiting (waiting for messages to be enqueued)
     // For optimal performance, could try to design a congestion control algorithm to adjust sending rate based on network conditions
-    std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    std::this_thread::sleep_for(std::chrono::milliseconds(SEND_TIMEOUT_MS));
   }
 }
 
@@ -116,7 +116,7 @@ void Node::listen()
     if (!received_msgs.empty()) {
       for (size_t i = 0; i < msg.getNbMes(); i++) {
         if (received_msgs[i]) {
-          uint32_t seq = msg.getSeqs()[i];
+          msg_seq_t seq = msg.getSeqs()[i];
           logger->logDelivery(msg.getOriginId(), seq);
         }
       }

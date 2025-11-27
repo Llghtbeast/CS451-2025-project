@@ -1,7 +1,6 @@
 #include "message.hpp"
-#include <iostream>
 
-Message::Message(MessageType type, unsigned long origin_id, uint8_t nb_m, std::vector<uint32_t> seqs)
+Message::Message(MessageType type, proc_id_t origin_id, uint8_t nb_m, std::vector<msg_seq_t> seqs)
   : m_type(type), origin_id(origin_id), nb_mes(nb_m), seqs(seqs)
 {
   // basic validation
@@ -11,9 +10,9 @@ Message::Message(MessageType type, unsigned long origin_id, uint8_t nb_m, std::v
 }
 
 MessageType Message::getType() const                  { return m_type; }
-unsigned long Message::getOriginId() const            { return origin_id; }
+proc_id_t Message::getOriginId() const            { return origin_id; }
 uint8_t Message::getNbMes() const                     { return nb_mes; }
-const std::vector<uint32_t> Message::getSeqs() const  { return seqs; }
+const std::vector<msg_seq_t> Message::getSeqs() const  { return seqs; }
 
 /** 
  * Convert message to ACK type
@@ -26,7 +25,31 @@ Message Message::toAck()
 
 size_t Message::serializedSize() const 
 {
-  return 1 + sizeof(origin_id) + 1 + nb_mes * sizeof(uint32_t); // type + origin_id(8) + nb_mes + seqs
+  return 1 + sizeof(origin_id) + 1 + nb_mes * sizeof(msg_seq_t); // type + origin_id(8) + nb_mes + seqs
+}
+
+void Message::displayMessage(const Message& message)
+{
+  std::cout << "Message Type: " << static_cast<int>(message.getType()) << "\n";
+  std::cout << "Origin ID: " << message.getOriginId() << "\n";
+  std::cout << "Number of Messages: " << static_cast<int>(message.getNbMes()) << "\n";
+  std::cout << "Sequence Numbers: ";
+  for (msg_seq_t seq : message.getSeqs()) {
+    std::cout << seq << " ";
+  }
+  std::cout << "\n";
+}
+
+void Message::displaySerialized(const char* serialized)
+{
+  size_t len = Message::deserialize(serialized).serializedSize();
+  std::cout << "Serialized message size: " << len << std::endl;
+  std::cout << "Serialized message (hex): ";
+  for (size_t i = 0; i < len; ++i) {
+    unsigned char c = static_cast<unsigned char>(serialized[i]);
+    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c) << ' ';
+  }
+  std::cout << std::dec << std::setfill(' ') << "\n"; // reset formatting
 }
 
 /**
@@ -52,7 +75,7 @@ const char *Message::serialize() const
 
   // seqs (each 4 bytes big-endian)
   for (size_t i = 0; i < nb_mes; ++i) {
-    uint32_t net_seq = htonl(seqs[i]);
+    msg_seq_t net_seq = htonl(seqs[i]);
     char seq_bytes[sizeof(net_seq)];
     std::memcpy(seq_bytes, &net_seq, sizeof(net_seq));
     serialized_buffer.insert(serialized_buffer.end(), seq_bytes, seq_bytes + sizeof(net_seq));
@@ -76,20 +99,20 @@ Message Message::deserialize(const char * buffer)
   uint64_t net_id;
   std::memcpy(&net_id, ptr + offset, sizeof(net_id));
   offset += sizeof(net_id);
-  unsigned long origin_id = static_cast<unsigned long>(be64toh(net_id));
+  proc_id_t origin_id = static_cast<proc_id_t>(be64toh(net_id));
 
   // nb_mes (1 byte)
   uint8_t nb = static_cast<uint8_t>(ptr[offset]);
   offset += 1;
 
-  std::vector<uint32_t> seqs_out;
+  std::vector<msg_seq_t> seqs_out;
   seqs_out.reserve(nb);
 
   for (uint8_t i = 0; i < nb; ++i) {
-    uint32_t net_seq;
+    msg_seq_t net_seq;
     std::memcpy(&net_seq, ptr + offset, sizeof(net_seq));
     offset += sizeof(net_seq);
-    uint32_t seq = ntohl(net_seq);
+    msg_seq_t seq = ntohl(net_seq);
     seqs_out.push_back(seq);
   }
 

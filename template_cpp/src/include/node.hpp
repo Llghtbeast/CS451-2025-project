@@ -18,13 +18,14 @@
 #include "helper.hpp"
 #include "message.hpp"
 #include "logger.hpp"
+#include "globals.hpp"
 
 /**
  * Implementation of a network node that can send and receive messages.
  */
 class Node {
 public:  
-  Node(std::vector<Parser::Host> nodes, long unsigned int id, std::string outputPath);
+  Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath);
   void start();
   void enqueueMessage(sockaddr_in dest);
   void terminate();
@@ -40,14 +41,14 @@ private:
   void log();
   
 private:
-  long unsigned int id;
+  proc_id_t id;
   std::unique_ptr<Logger> logger;
   std::atomic_bool runFlag;
 
   int node_socket;
   sockaddr_in node_addr;
 
-  std::unordered_map< std::string, uint64_t> others_id;
+  std::unordered_map< std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
   std::thread sender_thread;
