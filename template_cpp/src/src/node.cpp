@@ -1,14 +1,7 @@
 #include "node.hpp"
 
-/**
- * Constructor to initialize the network node with its neighbors, its ID, the network's receiver ID, and the file output path. It sets up the UDP socket and binds it to the node's address.
- * @param nodes A vector of all nodes in the network.
- * @param id The unique identifier for this node.
- * @param receiver_id The unique identifier for the network's receiver node.
- * @param outputPath The path to the output file where messages will be logged.
- */
 Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath)
-  : id(id), logger(std::make_unique<Logger>(outputPath))
+  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size()), pending_messages({}), delivered_messages({}), acked_by({})
   {
     // Initialize run flag
     runFlag.store(false);
@@ -50,21 +43,36 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
     }
   }
 
-/**
- * Enqueues a message with the current sequence number to be sent to the specified destination address.
- * @param dest The destination address to send messages to.
- */
-void Node::enqueueMessage(sockaddr_in dest)
+void Node::start()
 {
-  // Transform message sequence number into big-endian for network transport
-  std::string dest_str = ipAddressToString(dest);
-  msg_seq_t seq = links[dest_str]->enqueueMessage();
-  logger->logBroadcast(seq);
+  // avoid starting multiple times
+  if (runFlag.load()) {
+    return;
+  }
+
+  runFlag.store(true);
+
+  // start worker threads bound to this instance
+  sender_thread = std::thread(&Node::send, this);
+  listener_thread = std::thread(&Node::listen, this);
+  logger_thread = std::thread(&Node::log, this);
 }
 
-/**
- * Message sending loop that continuously enqueues and sends messages to the specified destination address while the run flag is set.
- */
+void Node::broadcast()
+{
+  // Increment message sequence number
+  m_seq++;
+
+  for (auto &pair: links) {
+    pair.second->enqueueMessage(m_seq);
+  }
+  
+  // Log broadcast, add to pending messages and acked_by structures
+  logger->logBroadcast(m_seq);
+  pending_messages.insert(m_seq);
+  acked_by[m_seq] = {id};
+}
+
 void Node::send()
 {
   while (runFlag.load())
@@ -81,9 +89,6 @@ void Node::send()
   }
 }
 
-/**
- * Message listening loop that continuously listens for incoming messages and processes them while the run flag is set.
- */
 void Node::listen()
 {
   // Listen while the run flag is set
@@ -111,8 +116,10 @@ void Node::listen()
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     std::cout << "message received from " << sender_ip_and_port << "\n";
   
-    // Deliver message
+    // Process message through perfect link -> extract new received messages
     std::vector<bool> received_msgs = links[sender_ip_and_port]->receive(msg);
+
+    // Deliver message
     if (!received_msgs.empty()) {
       for (size_t i = 0; i < msg.getNbMes(); i++) {
         if (received_msgs[i]) {
@@ -124,9 +131,6 @@ void Node::listen()
   }
 }
 
-/**
- * Logger thread function that periodically writes log entries to the log file while the run flag is set.
- */
 void Node::log() {
   // Listen while the run flag is set
   while (runFlag.load())
@@ -137,27 +141,6 @@ void Node::log() {
   }
 }
 
-/**
- * Starts the node's sending and listening threads.
- */
-void Node::start()
-{
-  // avoid starting multiple times
-  if (runFlag.load()) {
-    return;
-  }
-
-  runFlag.store(true);
-
-  // start worker threads bound to this instance
-  sender_thread = std::thread(&Node::send, this);
-  listener_thread = std::thread(&Node::listen, this);
-  logger_thread = std::thread(&Node::log, this);
-}
-
-/**
- * Terminates the node's sending and listening threads.
- */
 void Node::terminate()
 {
   // Stop the node's sending and listening threads (finish execution and exit)
@@ -185,18 +168,12 @@ void Node::finished(sockaddr_in dest) {
   links[dest_str]->finished();
 }
 
-/**
- * Cleans up resources used by the node, including closing the socket and output file.
- */
 void Node::cleanup() 
 {
   close(node_socket);
   logger->cleanup();
 }
 
-/**
- * Flushes the output stream to ensure all received messages are logged.
- */
 void Node::flushToOutput() 
 {
   // Flush output stream to ensure all received messages are logged.

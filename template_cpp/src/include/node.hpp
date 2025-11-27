@@ -18,6 +18,7 @@
 #include "helper.hpp"
 #include "message.hpp"
 #include "logger.hpp"
+#include "concurrent_set.hpp"
 #include "globals.hpp"
 
 /**
@@ -25,31 +26,76 @@
  */
 class Node {
 public:  
+  /**
+   * Constructor to initialize the network node with its neighbors, its ID, the network's receiver ID, and the file output path. It sets up the UDP socket and binds it to the node's address.
+   * @param nodes A vector of all nodes in the network.
+   * @param id The unique identifier for this node.
+   * @param receiver_id The unique identifier for the network's receiver node.
+   * @param outputPath The path to the output file where messages will be logged.
+   */
   Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath);
+  
+  /**
+   * Starts the node's sending and listening threads.
+   */
   void start();
-  void enqueueMessage(sockaddr_in dest);
+
+  /**
+   * Enqueues a message to be broadcast with the current sequence number.
+   */
+  void broadcast();
+
+  /**
+   * Terminates the node's sending and listening threads.
+   */
   void terminate();
-  void cleanup();  
+
+  /**
+   * Cleans up resources used by the node, including closing the socket and output file.
+   */
+  void cleanup();
+  
+  /**
+   * Flushes the output stream to ensure all received messages are logged.
+   */
   void flushToOutput();
 
   void allMessagesEnqueued(sockaddr_in dest);
   void finished(sockaddr_in dest);
 
 private:
+  /**
+   * Message sending loop that continuously enqueues and sends messages to the specified destination address while the run flag is set.
+   */
   void send();
+
+  /**
+   * Message listening loop that continuously listens for incoming messages and processes them while the run flag is set.
+   */
   void listen();
+
+  /**
+   * Logger thread function that periodically writes log entries to the log file while the run flag is set.
+   */
   void log();
   
 private:
+  msg_seq_t m_seq = 0;
+
   proc_id_t id;
   std::unique_ptr<Logger> logger;
   std::atomic_bool runFlag;
 
   int node_socket;
   sockaddr_in node_addr;
-
-  std::unordered_map< std::string, proc_id_t> others_id;
+  
+  unsigned int nb_nodes;
+  std::unordered_map<std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
+
+  ConcurrentSet<msg_seq_t> pending_messages;
+  ConcurrentSet<msg_seq_t> delivered_messages;
+  std::unordered_map<msg_seq_t, std::set<proc_id_t>> acked_by;
 
   std::thread sender_thread;
   std::thread listener_thread;

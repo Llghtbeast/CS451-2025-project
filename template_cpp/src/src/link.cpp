@@ -1,36 +1,17 @@
 #include "link.hpp"
 
 /* =============================== Port Implementation =============================== */
-/**
- * Constructor to initialize the Port with a socket and its send and receive addresses.
- * @param socket The UDP socket used for communication.
- * @param source_addr The address to which messages will be sent.
- * @param dest_addr The address from which messages will be received.
- */
 Port::Port(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr) 
   : socket(socket), source_id(source_id), source_addr(source_addr), dest_addr(dest_addr) {}
 
-/**
- * Constructor to initialize the SenderPort with a socket and its send and receive addresses.
- * @param socket The UDP socket used for communication.
- * @param source_addr The address to which messages will be sent.
- * @param dest_addr The address from which messages will be received.
- */
 SenderPort::SenderPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : Port(socket, source_id, source_addr, dest_addr)
 {
   messageQueue = {};
 }
 
-/**
-* Enqueues a message to be sent later.
-* @param m_seq The sequence number of the message.
-*/
-msg_seq_t SenderPort::enqueueMessage()
+void SenderPort::enqueueMessage(msg_seq_t m_seq)
 {  
-  // Increment message sequence number
-  m_seq++;
-
   // Wait until there is space in the queue
   std::unique_lock<std::mutex> lock(queue_mutex);
   queue_cv.wait(lock, [&]() {
@@ -42,14 +23,8 @@ msg_seq_t SenderPort::enqueueMessage()
   
   // Notify any waiting threads that a new message has been enqueued
   lock.unlock();
-
-  return m_seq;
 }
 
-/**
- * Send the first enqueued messages.
- * @throws std::runtime_error if sending fails.
- */
 void SenderPort::send()
 {
   // Lock the queue while accessing it
@@ -100,10 +75,6 @@ void SenderPort::send()
   }
 }
 
-/** 
- * Receive ACK from receiver and removed corresponding message from queue.
- * @param m_seq The sequence number of the acknowledged message.
-*/
 void SenderPort::receiveAck(std::vector<msg_seq_t> acked_messages)
 {
   // Lock the queue while modifying it
@@ -139,20 +110,9 @@ void SenderPort::finished() {
   return;
 }
 
-/**
- * Constructor to initialize the ReceiverPort with a socket and its send and receive addresses.
- * @param socket The UDP socket used for communication.
- * @param source_addr The address to which messages will be sent.
- * @param dest_addr The address from which messages will be received.
- */
 ReceiverPort::ReceiverPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : Port(socket, source_id, source_addr, dest_addr), deliveredMessages({0}) {}
 
-/**
- * Add message to delivered list, send ACK to sender, and return true if message was not already delivered. Otherwise, return false.
- * @param m_seq The sequence number of the message to be delivered.
- * @return True if the message was not already delivered, false otherwise.
- */
 std::vector<bool> ReceiverPort::respond(Message message)
 {
   std::cout << "Delivered messages set: ";
@@ -197,19 +157,12 @@ std::vector<bool> ReceiverPort::respond(Message message)
 }
 
 /* =============================== Link Implementation =============================== */
-/**
- * Constructor to initialize the PerfectLink with a socket and its send and receive addresses.
- * @param socket The UDP socket used for communication.
- * @param source_addr The address to which messages will be sent.
- * @param dest_addr The address from which messages will be received.
- */
 PerfectLink::PerfectLink(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : sendPort(socket, source_id, source_addr, dest_addr), recvPort(socket, source_id, source_addr, dest_addr) {}
 
-
-msg_seq_t PerfectLink::enqueueMessage()
+void PerfectLink::enqueueMessage(msg_seq_t m_seq)
 {
-  return sendPort.enqueueMessage();
+  sendPort.enqueueMessage(m_seq);
 }
 
 void PerfectLink::send()
