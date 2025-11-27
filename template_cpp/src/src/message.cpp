@@ -1,5 +1,5 @@
 #include "message.hpp"
-#include <endian.h>
+#include <iostream>
 
 Message::Message(MessageType type, unsigned long origin_id, uint8_t nb_m, std::vector<uint32_t> seqs)
   : m_type(type), origin_id(origin_id), nb_mes(nb_m), seqs(seqs)

@@ -70,3 +70,7 @@ MESSAGE( STATUS "CMAKE_CXX_FLAGS: " ${CMAKE_CXX_FLAGS} )
 MESSAGE( STATUS "CMAKE_BUILD_TYPE: " ${CMAKE_BUILD_TYPE} )
 
 add_subdirectory(src)
+
+# Enable CTest and add test subdirectory
+enable_testing()
+add_subdirectory(test)

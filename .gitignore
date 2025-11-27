@@ -1,5 +1,6 @@
 **/.DS_Store
 build/
-test/
+test_output/
+Testing/
 .vscode/
 **/__pycache__/

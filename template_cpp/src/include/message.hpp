@@ -5,6 +5,7 @@
 #include <sstream>
 #include <cstring>
 #include <arpa/inet.h>
+#include <endian.h>
 
 enum MessageType : uint8_t {
   MES = 0,
