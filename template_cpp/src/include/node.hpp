@@ -98,7 +98,7 @@ private:
   std::unordered_map<std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
-  // ConcurrentSet<std::tuple<proc_id_t, msg_seq_t>> pending_messages;
+  // std::unordered_map<proc_id_t, ConcurrentSet<msg_seq_t>> pending_messages;
   // std::unordered_map<proc_id_t, SlidingSet<msg_seq_t>> delivered_messages;
   // std::unordered_map<proc_id_t, std::unordered_map<msg_seq_t, std::set<proc_id_t>>> acked_by;
 
