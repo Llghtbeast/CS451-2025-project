@@ -5,43 +5,27 @@ Port::Port(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in
   : socket(socket), source_id(source_id), source_addr(source_addr), dest_addr(dest_addr) {}
 
 SenderPort::SenderPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Port(socket, source_id, source_addr, dest_addr)
-{
-  messageQueue = {};
-}
+  : Port(socket, source_id, source_addr, dest_addr), messageQueue(Message::max_msgs * window_size * MAX_QUEUE_SIZE)
+{}
 
 void SenderPort::enqueueMessage(msg_seq_t m_seq)
 {  
-  // Wait until there is space in the queue
-  std::unique_lock<std::mutex> lock(queue_mutex);
-  queue_cv.wait(lock, [&]() {
-    return messageQueue.size() < maxQueueSize;
-  });
-  
-  // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
-  messageQueue.insert(messageQueue.end(), m_seq); 
-  
-  // Notify any waiting threads that a new message has been enqueued
-  lock.unlock();
+  messageQueue.insert(m_seq); 
 }
 
 void SenderPort::send()
 {
-  // Lock the queue while accessing it
-  std::lock_guard<std::mutex> lock(queue_mutex);
+  if (messageQueue.empty()) return; // No messages to send
 
-  if (messageQueue.empty()) {
-    return; // No messages to send
-  }
-
-  // set up for message iterator and send failure array
-  std::set<msg_seq_t>::iterator it = messageQueue.begin();
+  // take a snapshot of the current message queue to iterate over
+  std::vector<msg_seq_t> setSnapshot = messageQueue.snapshot();
+  auto it = setSnapshot.begin();
   
   for (size_t i = 0; i < window_size; i++) {
     std::vector<msg_seq_t> msgs;
 
     uint8_t nb_msgs = 0;
-    for (nb_msgs = 0; nb_msgs < Message::max_msgs && it != messageQueue.end(); nb_msgs++, it++) {
+    for (nb_msgs = 0; nb_msgs < Message::max_msgs && it != setSnapshot.end(); nb_msgs++, it++) {
       msgs.push_back(*it);
     }
     
@@ -68,7 +52,7 @@ void SenderPort::send()
     std::cout << "Message sent successfully.\n";
 
     // Terminate if all messages have been sent
-    if (it == messageQueue.end()) {
+    if (it == setSnapshot.end()) {
       std::cout << "All messages in queue sent.\n";
       break;
     }
@@ -77,18 +61,9 @@ void SenderPort::send()
 
 void SenderPort::receiveAck(std::vector<msg_seq_t> acked_messages)
 {
-  // Lock the queue while modifying it
-  std::unique_lock<std::mutex> lock(queue_mutex);
-  
-  // Remove message from queue (correctly delivered at target)
-  for (msg_seq_t seq: acked_messages) {
-    messageQueue.erase(seq);
-  }
-  
-  // Notify the waiting enqueuer thread that space is available in the queue
-  lock.unlock();
-  queue_cv.notify_one();
-  
+  // Remove messages acknowledged by receiver
+  messageQueue.erase(acked_messages);
+
   all_msg_delivered = messageQueue.empty();
   // Notify finished condition variable to maybe signal completion to main thread
   finished_cv.notify_one();
@@ -111,38 +86,14 @@ void SenderPort::finished() {
 }
 
 ReceiverPort::ReceiverPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Port(socket, source_id, source_addr, dest_addr), deliveredMessages({0}) {}
+  : Port(socket, source_id, source_addr, dest_addr), deliveredMessages(INITIAL_SLIDING_SET_PREFIX) {}
 
 std::vector<bool> ReceiverPort::respond(Message message)
 {
-  std::cout << "Delivered messages set: ";
-  for (msg_seq_t seq: deliveredMessages) {
-    std::cout << seq << " ";
-  }
-  std::cout << "\n";
+  deliveredMessages.display();
 
   // Update delivered message set and construct delivery status vector
-  std::vector<bool> delivery_status;
-  std::set<msg_seq_t>::iterator it = deliveredMessages.begin();
-  for (msg_seq_t m_seq: message.getSeqs()) {
-    if (m_seq < *it) {
-      delivery_status.push_back(false); // already delivered
-      std::cout << "Received message with seq number: " << m_seq << " delivered: " << false << ". Delivered set size: " << deliveredMessages.size() << "\n";
-    }
-    else {
-      auto result = deliveredMessages.insert(m_seq);
-      delivery_status.push_back(result.second); // true if inserted (not delivered before), false otherwise
-      std::cout << "Received message with seq number: " << m_seq << " delivered: " << result.second << ". Delivered set size: " << deliveredMessages.size() << "\n";
-    }
-  }
-
-  // Remove leading delivered messages to avoid unbounded growth
-  while (it != deliveredMessages.end()) {
-    if (*it + 1 != *(++it)) {
-      break;
-    }
-  }
-  deliveredMessages.erase(deliveredMessages.begin(), --it);
+  std::vector<bool> delivery_status = deliveredMessages.insert(message.getSeqs());
 
   // Transform message to ack and serialize
   Message ackMsg = message.toAck();

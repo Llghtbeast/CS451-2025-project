@@ -14,6 +14,7 @@
 #include "parser.hpp"
 #include "message.hpp"
 #include "logger.hpp"
+#include "sets.hpp"
 
 /**
  * Derived class representing a sender endpoint of a communication link.
@@ -74,12 +75,8 @@ public:
   void finished();
   
 private:
-  std::set<msg_seq_t> messageQueue;
-  size_t maxQueueSize = Message::max_msgs * window_size * 100;
-  
-  std::condition_variable queue_cv;
-  std::mutex queue_mutex;
-  
+  ConcurrentSet<msg_seq_t> messageQueue;
+    
   std::mutex finished_mutex;
   std::condition_variable finished_cv;
   bool all_msg_enqueued = false;
@@ -106,7 +103,7 @@ public:
   std::vector<bool> respond(Message message);
   
   private:
-  std::set<msg_seq_t> deliveredMessages;
+  SlidingSet<msg_seq_t> deliveredMessages;
 };
 
 /**

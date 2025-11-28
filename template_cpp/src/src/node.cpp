@@ -1,7 +1,7 @@
 #include "node.hpp"
 
 Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath)
-  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size()), pending_messages({}), delivered_messages({}), acked_by({})
+  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size()), pending_messages(MAX_QUEUE_SIZE), delivered_messages(INITIAL_SLIDING_SET_PREFIX), acked_by({})
   {
     // Initialize run flag
     runFlag.store(false);
@@ -58,19 +58,27 @@ void Node::start()
   logger_thread = std::thread(&Node::log, this);
 }
 
+void Node::enqueueMessage(sockaddr_in dest)
+{
+  std::string dest_str = ipAddressToString(dest);
+  links[dest_str]->enqueueMessage(++m_seq);
+  logger->logBroadcast(m_seq);
+}
+
 void Node::broadcast()
 {
   // Increment message sequence number
   m_seq++;
 
+  // Enqueue message on all perfect links
   for (auto &pair: links) {
     pair.second->enqueueMessage(m_seq);
   }
   
   // Log broadcast, add to pending messages and acked_by structures
-  logger->logBroadcast(m_seq);
-  pending_messages.insert(m_seq);
-  acked_by[m_seq] = {id};
+  // logger->logBroadcast(m_seq);
+  // pending_messages.insert(m_seq);
+  // acked_by[m_seq] = {id};
 }
 
 void Node::send()

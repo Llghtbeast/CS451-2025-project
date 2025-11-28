@@ -18,7 +18,7 @@
 #include "helper.hpp"
 #include "message.hpp"
 #include "logger.hpp"
-#include "concurrent_set.hpp"
+#include "sets.hpp"
 #include "globals.hpp"
 
 /**
@@ -39,6 +39,9 @@ public:
    * Starts the node's sending and listening threads.
    */
   void start();
+
+  // temporary method for testing
+  void enqueueMessage(sockaddr_in dest);
 
   /**
    * Enqueues a message to be broadcast with the current sequence number.
@@ -89,12 +92,12 @@ private:
   int node_socket;
   sockaddr_in node_addr;
   
-  unsigned int nb_nodes;
+  size_t nb_nodes;
   std::unordered_map<std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
   ConcurrentSet<msg_seq_t> pending_messages;
-  ConcurrentSet<msg_seq_t> delivered_messages;
+  SlidingSet<msg_seq_t> delivered_messages;
   std::unordered_map<msg_seq_t, std::set<proc_id_t>> acked_by;
 
   std::thread sender_thread;
