@@ -10,6 +10,7 @@
 #include <mutex>
 #include <errno.h>
 #include <memory>
+#include <tuple>
 
 #include "parser.hpp"
 #include "message.hpp"
@@ -54,9 +55,10 @@ public:
   
   /**
    * Enqueues a message to be sent later.
+   * @param origin_id The ID of the origin node.
    * @param m_seq The sequence number of the message.
    */
-  void enqueueMessage(msg_seq_t m_seq);
+  void enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq);
 
 /**
  * Send the first enqueued messages.
@@ -68,14 +70,16 @@ public:
  * Receive ACK from receiver and removed corresponding message from queue.
  * @param m_seq The sequence number of the acknowledged message.
 */
-  void receiveAck(std::vector<msg_seq_t> acked_messages);
+  void receiveAck(std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> acked_messages);
 
   void allMessagesEnqueued();
 
   void finished();
   
 private:
-  ConcurrentSet<msg_seq_t> messageQueue;
+  msg_seq_t link_seq = 0;
+
+  ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> messageQueue;
     
   std::mutex finished_mutex;
   std::condition_variable finished_cv;
@@ -119,7 +123,7 @@ public:
  */
   PerfectLink(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
 
-  void enqueueMessage(msg_seq_t m_seq);
+  void enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq);
   void send();
   std::vector<bool> receive(Message mes);
 

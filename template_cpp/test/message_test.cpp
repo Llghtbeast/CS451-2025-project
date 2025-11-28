@@ -11,8 +11,16 @@ static void testMessageSerialization() {
 
   proc_id_t origin_id = 123456789;
   uint8_t nb_mes = 8;
-  std::vector<msg_seq_t> seqs = {2, 3, 4, 5, 6, 7, 8, 9};
-  Message msg(MES, origin_id, nb_mes, seqs);
+  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payload = {{1, origin_id, 10},
+                                                                      {2, origin_id, 20},
+                                                                      {3, origin_id, 30},
+                                                                      {4, origin_id, 40},
+                                                                      {5, origin_id, 50},
+                                                                      {6, origin_id, 60},
+                                                                      {7, origin_id, 70},
+                                                                      {8, origin_id, 80} };
+
+  Message msg(MES, nb_mes, payload);
 
   const char* serialized = msg.serialize();
   Message::displaySerialized(serialized);
@@ -20,9 +28,8 @@ static void testMessageSerialization() {
   
 
   IS_TRUE(deserialized_msg.getType() == MES);
-  IS_TRUE(deserialized_msg.getOriginId() == origin_id);
   IS_TRUE(deserialized_msg.getNbMes() == nb_mes);
-  IS_TRUE(deserialized_msg.getSeqs() == seqs);
+  IS_TRUE(deserialized_msg.getPayloads() == payload);
 }
 
 int main() {

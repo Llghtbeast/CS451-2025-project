@@ -44,9 +44,11 @@ public:
   void enqueueMessage(sockaddr_in dest);
 
   /**
-   * Enqueues a message to be broadcast with the current sequence number.
+   * Enqueues a message to be broadcast
+   * @param origin_id The ID of the origin node of the message. If it is this node's ID, a new sequence number is generated. Otherwise, the provided sequence number is used.
+   * @param seq The sequence number of the message. If origin_id is this node's ID, this parameter is ignored.
    */
-  void broadcast();
+  void broadcast(proc_id_t origin_id, msg_seq_t seq = 0);
 
   /**
    * Terminates the node's sending and listening threads.
@@ -96,9 +98,9 @@ private:
   std::unordered_map<std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
-  ConcurrentSet<msg_seq_t> pending_messages;
-  SlidingSet<msg_seq_t> delivered_messages;
-  std::unordered_map<msg_seq_t, std::set<proc_id_t>> acked_by;
+  // ConcurrentSet<std::tuple<proc_id_t, msg_seq_t>> pending_messages;
+  // std::unordered_map<proc_id_t, SlidingSet<msg_seq_t>> delivered_messages;
+  // std::unordered_map<proc_id_t, std::unordered_map<msg_seq_t, std::set<proc_id_t>>> acked_by;
 
   std::thread sender_thread;
   std::thread listener_thread;

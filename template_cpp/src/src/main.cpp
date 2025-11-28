@@ -102,10 +102,9 @@ int main(int argc, char **argv) {
   
   std::cout << "Broadcasting and delivering messages...\n\n";
 
-  // Create senders and receiver
+  // Create node
   Node node(hosts, parser.id(), parser.outputPath());
   p_node = &node;
-  
   
   // Start node (sending and listening)
   std::thread node_thread(&Node::start, &node);
@@ -120,10 +119,9 @@ int main(int argc, char **argv) {
     auto start_time = std::chrono::high_resolution_clock::now();
         
     // Start enqueueing messages if this is a sender
-    for (size_t i = 0; i < total_m;) {
-      // Try to enqueue message, if queue is full yield to other threads and retry
-      node.enqueueMessage(setupIpAddress(parser.hosts()[recv_id - 1]));
-      i++;
+    for (size_t i = 0; i < total_m; i++) {
+      // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
+      node.broadcast(parser.id());
     }
     std::cout << "All messages enqueued.\n\n";
     node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));

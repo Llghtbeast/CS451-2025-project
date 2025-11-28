@@ -1,42 +1,92 @@
 #include "message.hpp"
 
-Message::Message(MessageType type, proc_id_t origin_id, uint8_t nb_m, std::vector<msg_seq_t> seqs)
-  : m_type(type), origin_id(origin_id), nb_mes(nb_m), seqs(seqs)
+// Constructor for MES
+Message::Message(MessageType type, uint8_t nb_m, 
+                 std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads)
+    : m_type(type), origin_id(0), nb_mes(nb_m), payload(std::move(payloads)) 
 {
-  // basic validation
-  if (nb_mes != seqs.size()) {
-    throw std::invalid_argument("Message: nb_mes does not match seqs sizes");
-  }
+  assert(type == MessageType::MES);
+  assert(nb_m == payloads.size());
 }
 
-MessageType Message::getType() const                  { return m_type; }
-proc_id_t Message::getOriginId() const            { return origin_id; }
-uint8_t Message::getNbMes() const                     { return nb_mes; }
-const std::vector<msg_seq_t> Message::getSeqs() const  { return seqs; }
+// Message::Message(MessageType type, uint8_t nb_m, std::vector<msg_seq_t> seqs)
+//     : m_type(type), nb_mes(nb_m), payload(std::move(seqs)) 
+// {
+//   assert(type == MessageType::ACK);
+//   assert(nb_m == seqs.size());
+// }
+
+MessageType Message::getType() const  { return m_type; }
+uint8_t Message::getNbMes() const     { return nb_mes; }
+
+const std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>& Message::getPayloads() const 
+{
+  return payload;
+  // assert(m_type == MessageType::MES);
+  // return std::get<0>(payload);
+}
+
+const std::vector<msg_seq_t> Message::getSeqs() const
+{ 
+  std::vector<msg_seq_t> seqs;
+  seqs.reserve(nb_mes);
+  for (const auto& [seq, _, __] : payload) {
+    seqs.push_back(seq);
+  }
+  return seqs; 
+  // assert(m_type == MessageType::ACK);
+  // return std::get<1>(payload);
+}
 
 /** 
  * Convert message to ACK type
  */
 Message Message::toAck()
 {
-  Message new_msg = Message(ACK, origin_id, nb_mes, seqs);
+  // // Extract link sequence numbers from MES payload
+  // auto payloads = std::get<0>(payload);
+  // std::vector<msg_seq_t> seqs;
+  // seqs.reserve(nb_mes);
+  // for (const auto& tup : payloads) {
+  //   // extract link sequence number
+  //   seqs.push_back(std::get<0>(tup)); 
+  // }
+  
+  // Construct ACK message
+  Message new_msg = Message(ACK, nb_mes, payload);
   return new_msg;
 }
 
 size_t Message::serializedSize() const 
 {
-  return 1 + sizeof(origin_id) + 1 + nb_mes * sizeof(msg_seq_t); // type + origin_id(8) + nb_mes + seqs
+  size_t size = 1 + 1;
+
+  // if (m_type == MES) {
+  size += nb_mes * (sizeof(msg_seq_t) + sizeof(proc_id_t) + sizeof(msg_seq_t));
+  // } else if (m_type == ACK) {
+  //   size += nb_mes * sizeof(msg_seq_t);
+  // }
+
+  return size;
 }
 
 void Message::displayMessage(const Message& message)
 {
   std::cout << "Message Type: " << static_cast<int>(message.getType()) << "\n";
-  std::cout << "Origin ID: " << message.getOriginId() << "\n";
   std::cout << "Number of Messages: " << static_cast<int>(message.getNbMes()) << "\n";
-  std::cout << "Sequence Numbers: ";
-  for (msg_seq_t seq : message.getSeqs()) {
-    std::cout << seq << " ";
-  }
+  std::cout << "Payload:\n";
+  // if (message.getType() == MES) {
+  for (const auto& [seq, id, payload] : message.getPayloads()) {
+    std::cout << "    ";
+    std::cout << seq<< " ";
+    std::cout << id << " ";
+    std::cout << payload << "\n";
+    }
+  // } else if (message.getType() == ACK) {
+  //   for (msg_seq_t seq : message.getSeqs()) {
+  //     std::cout << seq << " ";
+  //   }
+  // }
   std::cout << "\n";
 }
 
@@ -52,69 +102,100 @@ void Message::displaySerialized(const char* serialized)
   std::cout << std::dec << std::setfill(' ') << "\n"; // reset formatting
 }
 
-/**
- * Serialize the Message into a byte buffer.
- * @return Pointer to the serialized byte buffer.
- */ 
-const char *Message::serialize() const
-{
+const char* Message::serialize() const {
   serialized_buffer.clear();
-  serialized_buffer.reserve(serializedSize());
-
-  // header: type (1 byte)
+  
+  // Write the message type (1 byte)
   serialized_buffer.push_back(static_cast<char>(m_type));
-
-  // origin_id in network (big-endian) order (8 bytes)
-  uint64_t net_id = htobe64(static_cast<uint64_t>(origin_id));
-  char id_bytes[sizeof(net_id)];
-  std::memcpy(id_bytes, &net_id, sizeof(net_id));
-  serialized_buffer.insert(serialized_buffer.end(), id_bytes, id_bytes + sizeof(net_id));
-
-  // nb_mes (1 byte)
+  
+  // Write the number of messages (1 byte)
   serialized_buffer.push_back(static_cast<char>(nb_mes));
-
-  // seqs (each 4 bytes big-endian)
-  for (size_t i = 0; i < nb_mes; ++i) {
-    msg_seq_t net_seq = htonl(seqs[i]);
-    char seq_bytes[sizeof(net_seq)];
-    std::memcpy(seq_bytes, &net_seq, sizeof(net_seq));
-    serialized_buffer.insert(serialized_buffer.end(), seq_bytes, seq_bytes + sizeof(net_seq));
+  
+  // Serialize payload with network byte order conversion
+  // std::visit([this](const auto& data) {
+  //   using T = std::decay_t<decltype(data)>;
+    
+  //   if constexpr (std::is_same_v<T, std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>>) {
+  //     // MES type
+  for (const auto& [seq, orig, payload_data] : payload) {
+    // Convert each field to network byte order before serializing
+    
+    // Sequence number
+    msg_seq_t seq_network = convertToNetwork(seq);
+    serialized_buffer.insert(serialized_buffer.end(),
+                            reinterpret_cast<const char*>(&seq_network),
+                            reinterpret_cast<const char*>(&seq_network) + sizeof(seq_network));
+    
+    // Origin ID
+    proc_id_t orig_network = convertToNetwork(orig);
+    serialized_buffer.insert(serialized_buffer.end(),
+                            reinterpret_cast<const char*>(&orig_network),
+                            reinterpret_cast<const char*>(&orig_network) + sizeof(orig_network));
+    
+    // Payload
+    msg_seq_t payload_network = convertToNetwork(payload_data);
+    serialized_buffer.insert(serialized_buffer.end(),
+                            reinterpret_cast<const char*>(&payload_network),
+                            reinterpret_cast<const char*>(&payload_network) + sizeof(payload_network));
   }
-
+  //   } else {
+  //     // ACK type
+  //     for (const auto& seq : data) {
+  //       msg_seq_t seq_network = convertToNetwork(seq);
+  //       serialized_buffer.insert(serialized_buffer.end(),
+  //                               reinterpret_cast<const char*>(&seq_network),
+  //                               reinterpret_cast<const char*>(&seq_network) + sizeof(seq_network));
+  //     }
+  //   }
+  // }, payload);
+  
   return serialized_buffer.data();
 }
 
-Message Message::deserialize(const char * buffer)
-{
-  if (buffer == nullptr) throw std::invalid_argument("Message::deserialize: null buffer");
-
-  const unsigned char *ptr = reinterpret_cast<const unsigned char *>(buffer);
+Message Message::deserialize(const char* buffer) {
   size_t offset = 0;
-
-  // type (1 byte)
-  MessageType type = static_cast<MessageType>(ptr[offset]);
-  offset += 1;
-
-  // origin_id (8 bytes, big-endian)
-  uint64_t net_id;
-  std::memcpy(&net_id, ptr + offset, sizeof(net_id));
-  offset += sizeof(net_id);
-  proc_id_t origin_id = static_cast<proc_id_t>(be64toh(net_id));
-
-  // nb_mes (1 byte)
-  uint8_t nb = static_cast<uint8_t>(ptr[offset]);
-  offset += 1;
-
-  std::vector<msg_seq_t> seqs_out;
-  seqs_out.reserve(nb);
-
+  
+  // STEP 1: Read type (1 byte)
+  MessageType type = static_cast<MessageType>(buffer[offset++]);
+  
+  // STEP 2: Read nb_mes (1 byte)
+  uint8_t nb = static_cast<uint8_t>(buffer[offset++]);
+  
+  // if (type == MessageType::MES) {
+  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads;
   for (uint8_t i = 0; i < nb; ++i) {
-    msg_seq_t net_seq;
-    std::memcpy(&net_seq, ptr + offset, sizeof(net_seq));
-    offset += sizeof(net_seq);
-    msg_seq_t seq = ntohl(net_seq);
-    seqs_out.push_back(seq);
+    msg_seq_t seq, payload_data;
+    proc_id_t orig;
+    
+    // Read and convert from network byte order
+    msg_seq_t seq_network;
+    std::memcpy(&seq_network, buffer + offset, sizeof(seq_network));
+    seq = convertFromNetwork(seq_network);
+    offset += sizeof(seq);
+    
+    proc_id_t orig_network;
+    std::memcpy(&orig_network, buffer + offset, sizeof(orig_network));
+    orig = convertFromNetwork(orig_network);
+    offset += sizeof(orig);
+    
+    msg_seq_t payload_network;
+    std::memcpy(&payload_network, buffer + offset, sizeof(payload_network));
+    payload_data = convertFromNetwork(payload_network);
+    offset += sizeof(payload_data);
+    
+    payloads.emplace_back(seq, orig, payload_data);
   }
 
-  return Message(type, origin_id, nb, seqs_out);
+  return Message(type, nb, std::move(payloads));
+  // } else { // ACK
+  //   std::vector<msg_seq_t> seqs;
+  //   for (uint8_t i = 0; i < nb; ++i) {
+  //     msg_seq_t seq_network;
+  //     std::memcpy(&seq_network, buffer + offset, sizeof(seq_network));
+  //     msg_seq_t seq = convertFromNetwork(seq_network);
+  //     offset += sizeof(seq);
+  //     seqs.push_back(seq);
+  //   }
+  //   return Message(type, nb, std::move(seqs));
+  // }
 }

@@ -93,7 +93,8 @@ std::vector<T> ConcurrentSet<T, Compare>::snapshot() const
 
 // Explicit template instantiation for msg_seq_t
 template class ConcurrentSet<msg_seq_t>;
-
+template class ConcurrentSet<std::tuple<proc_id_t, msg_seq_t>>;
+template class ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>;
 
 
 // ===================== SlidingSet start ===================== //
@@ -171,3 +172,4 @@ bool SlidingSet<T, Compare>::contains(const T &value)
 }
 // ===================== SlidingSet end ===================== //
 template class SlidingSet<msg_seq_t>;
+// template class SlidingSet<std::tuple<proc_id_t, msg_seq_t>>;

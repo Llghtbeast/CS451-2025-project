@@ -8,9 +8,11 @@ SenderPort::SenderPort(int socket, proc_id_t source_id, sockaddr_in source_addr,
   : Port(socket, source_id, source_addr, dest_addr), messageQueue(Message::max_msgs * window_size * MAX_QUEUE_SIZE)
 {}
 
-void SenderPort::enqueueMessage(msg_seq_t m_seq)
-{  
-  messageQueue.insert(m_seq); 
+void SenderPort::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
+{
+  link_seq++;
+  std::tuple<msg_seq_t, proc_id_t, msg_seq_t> messageTuple = std::make_tuple(link_seq, origin_id, m_seq);
+  messageQueue.insert(messageTuple); 
 }
 
 void SenderPort::send()
@@ -18,11 +20,11 @@ void SenderPort::send()
   if (messageQueue.empty()) return; // No messages to send
 
   // take a snapshot of the current message queue to iterate over
-  std::vector<msg_seq_t> setSnapshot = messageQueue.snapshot();
+  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> setSnapshot = messageQueue.snapshot();
   auto it = setSnapshot.begin();
   
   for (size_t i = 0; i < window_size; i++) {
-    std::vector<msg_seq_t> msgs;
+    std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msgs;
 
     uint8_t nb_msgs = 0;
     for (nb_msgs = 0; nb_msgs < Message::max_msgs && it != setSnapshot.end(); nb_msgs++, it++) {
@@ -31,16 +33,10 @@ void SenderPort::send()
     
     // Create message to send and display
     std::cout << "\nMessage to send:\n";
-    Message message(MES, source_id, nb_msgs, msgs);
+    Message message(MES, nb_msgs, msgs);
     Message::displayMessage(message);
     Message::displaySerialized(message.serialize());
     std::cout << std::endl;
-
-    std::cout << "Sending message with seq numbers: ";
-    for (msg_seq_t seq: msgs) {
-      std::cout << seq << " ";
-    }
-    std::cout << "\n";
   
     // Send message to receiver
     if (sendto(socket, message.serialize(), message.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
@@ -59,7 +55,7 @@ void SenderPort::send()
   }
 }
 
-void SenderPort::receiveAck(std::vector<msg_seq_t> acked_messages)
+void SenderPort::receiveAck(std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> acked_messages)
 {
   // Remove messages acknowledged by receiver
   messageQueue.erase(acked_messages);
@@ -111,9 +107,9 @@ std::vector<bool> ReceiverPort::respond(Message message)
 PerfectLink::PerfectLink(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
   : sendPort(socket, source_id, source_addr, dest_addr), recvPort(socket, source_id, source_addr, dest_addr) {}
 
-void PerfectLink::enqueueMessage(msg_seq_t m_seq)
+void PerfectLink::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
 {
-  sendPort.enqueueMessage(m_seq);
+  sendPort.enqueueMessage(origin_id, m_seq);
 }
 
 void PerfectLink::send()
@@ -123,21 +119,18 @@ void PerfectLink::send()
 
 std::vector<bool> PerfectLink::receive(Message mes)
 {
-  proc_id_t sender_id = mes.getOriginId();
   MessageType type = mes.getType();
-  std::vector<msg_seq_t> messages = mes.getSeqs();
 
   if (mes.getType() == MES) { 
     // Deliver message to receiver link
-    std::vector<bool> received = recvPort.respond(mes);
-    return received;
+    return recvPort.respond(mes);
   }
   else if (type == ACK) {
     // Process ACK on sender link
-    sendPort.receiveAck(messages);
+    sendPort.receiveAck(mes.getPayloads());
     std::cout << "Processed ACK for messages: ";
-    for (msg_seq_t m_seq: messages) {
-      std::cout << m_seq << " ";
+    for (msg_seq_t seq: mes.getSeqs()) {
+      std::cout << seq << " ";
       }
     std::cout << "\n";
     return {};
