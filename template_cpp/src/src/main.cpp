@@ -19,15 +19,15 @@ static void stop(int) {
   signal(SIGINT, SIG_DFL);
   
   // immediately stop network packet processing
-  std::cout << "Immediately stopping network packet processing.\n";
+  std::cout << "Immediately stopping network packet processing." << std::endl;
   p_node->terminate();
   
   // write/flush output file if necessary
-  std::cout << "Writing output.\n";
+  std::cout << "Writing output." << std::endl;
   p_node->flushToOutput();
 
   // Clean up resources
-  std::cout << "Cleaning up resources.\n";
+  std::cout << "Cleaning up resources." << std::endl;
   p_node->cleanup();
 
   // exit directly from signal handler
@@ -47,35 +47,35 @@ int main(int argc, char **argv) {
 
   std::cout << std::endl;
 
-  std::cout << "My PID: " << getpid() << "\n";
+  std::cout << "My PID: " << getpid() << "" << std::endl;
   std::cout << "From a new terminal type `kill -SIGINT " << getpid() << "` or `kill -SIGTERM "
-            << getpid() << "` to stop processing packets\n\n";
+            << getpid() << "` to stop processing packets\n" << std::endl;
 
-  std::cout << "My ID: " << parser.id() << "\n\n";
+  std::cout << "My ID: " << parser.id() << "\n" << std::endl;
 
-  std::cout << "List of resolved hosts is:\n";
-  std::cout << "==========================\n";
+  std::cout << "List of resolved hosts is:" << std::endl;
+  std::cout << "==========================" << std::endl;
   auto hosts = parser.hosts();
   for (auto &host : hosts) {
-    std::cout << host.id << "\n";
-    std::cout << "Human-readable IP: " << host.ipReadable() << "\n";
-    std::cout << "Machine-readable IP: " << host.ip << "\n";
-    std::cout << "Human-readbale Port: " << host.portReadable() << "\n";
-    std::cout << "Machine-readbale Port: " << host.port << "\n";
-    std::cout << "\n";
+    std::cout << host.id << "" << std::endl;
+    std::cout << "Human-readable IP: " << host.ipReadable() << "" << std::endl;
+    std::cout << "Machine-readable IP: " << host.ip << "" << std::endl;
+    std::cout << "Human-readbale Port: " << host.portReadable() << "" << std::endl;
+    std::cout << "Machine-readbale Port: " << host.port << "" << std::endl;
+    std::cout << "" << std::endl;
   }
-  std::cout << "\n";
+  std::cout << "" << std::endl;
 
-  std::cout << "Path to output:\n";
-  std::cout << "===============\n";
-  std::cout << parser.outputPath() << "\n\n";
+  std::cout << "Path to output:" << std::endl;
+  std::cout << "===============" << std::endl;
+  std::cout << parser.outputPath() << "\n" << std::endl;
 
-  std::cout << "Path to config:\n";
-  std::cout << "===============\n";
-  std::cout << parser.configPath() << "\n\n";
+  std::cout << "Path to config:" << std::endl;
+  std::cout << "===============" << std::endl;
+  std::cout << parser.configPath() << "\n" << std::endl;
 
 
-  std::cout << "Doing some initialization...\n\n";
+  std::cout << "Doing some initialization...\n" << std::endl;
 
   // Open config file
   std::ifstream configFile(parser.configPath());
@@ -95,12 +95,12 @@ int main(int argc, char **argv) {
 
   // Extract total number of messages sent by senders and id of receiver
   std::istringstream iss(config);
-  msg_seq_t total_m, recv_id;
-  if (!(iss >> total_m >> recv_id)) {
+  msg_seq_t total_m;
+  if (!(iss >> total_m)) {
     throw std::invalid_argument("Error parsing integers from config file");
   }
   
-  std::cout << "Broadcasting and delivering messages...\n\n";
+  std::cout << "Broadcasting and delivering messages...\n" << std::endl;
 
   // Create node
   Node node(hosts, parser.id(), parser.outputPath());
@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
   std::thread node_thread(&Node::start, &node);
   node_thread.detach();
   
-  std::cout << "Node started successfully.\n\n";
+  std::cout << "Node started successfully.\n" << std::endl;
     
   // Start clock to measure Sender execution time
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -120,13 +120,14 @@ int main(int argc, char **argv) {
     // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
     node.broadcast(parser.id());
   }
-  std::cout << "All messages enqueued.\n\n";
-  node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
-  node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
+
+  std::cout << "All messages enqueued.\n" << std::endl;
+  // node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
+  // node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
   
-  auto stop_time = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::milliseconds> (stop_time - start_time);
-  std::cout << "Node execution duration: " << duration.count() << " milliseconds\n\n";
+  // auto stop_time = std::chrono::high_resolution_clock::now();
+  // auto duration = std::chrono::duration_cast<std::chrono::milliseconds> (stop_time - start_time);
+  // std::cout << "Node execution duration: " << duration.count() << " milliseconds\n" << std::endl;
 
   // After a process finishes broadcasting,
   // it waits forever for the delivery of messages.

@@ -72,34 +72,34 @@ size_t Message::serializedSize() const
 
 void Message::displayMessage(const Message& message)
 {
-  std::cout << "Message Type: " << static_cast<int>(message.getType()) << "\n";
-  std::cout << "Number of Messages: " << static_cast<int>(message.getNbMes()) << "\n";
-  std::cout << "Payload:\n";
+  // std::cout << "Message Type: " << static_cast<int>(message.getType()) << "" << std::endl;
+  // std::cout << "Number of Messages: " << static_cast<int>(message.getNbMes()) << "" << std::endl;
+  // std::cout << "Payload:" << std::endl;
   // if (message.getType() == MES) {
   for (const auto& [seq, id, payload] : message.getPayloads()) {
-    std::cout << "    ";
-    std::cout << seq<< " ";
-    std::cout << id << " ";
-    std::cout << payload << "\n";
+    // std::cout << "    ";
+    // std::cout << seq<< " ";
+    // std::cout << id << " ";
+    // std::cout << payload << "" << std::endl;
     }
   // } else if (message.getType() == ACK) {
   //   for (msg_seq_t seq : message.getSeqs()) {
-  //     std::cout << seq << " ";
+  //     // std::cout << seq << " ";
   //   }
   // }
-  std::cout << "\n";
+  // std::cout << "" << std::endl;
 }
 
 void Message::displaySerialized(const char* serialized)
 {
   size_t len = Message::deserialize(serialized).serializedSize();
-  std::cout << "Serialized message size: " << len << std::endl;
-  std::cout << "Serialized message (hex): ";
+  // std::cout << "Serialized message size: " << len << std::endl;
+  // std::cout << "Serialized message (hex): ";
   for (size_t i = 0; i < len; ++i) {
     unsigned char c = static_cast<unsigned char>(serialized[i]);
-    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c) << ' ';
+    // std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c) << ' ';
   }
-  std::cout << std::dec << std::setfill(' ') << "\n"; // reset formatting
+  // std::cout << std::dec << std::setfill(' ') << "" << std::endl; // reset formatting
 }
 
 const char* Message::serialize() const {

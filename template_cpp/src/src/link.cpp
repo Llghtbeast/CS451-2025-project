@@ -32,11 +32,11 @@ void SenderPort::send()
     }
     
     // Create message to send and display
-    std::cout << "\nMessage to send:\n";
+    // std::cout << "\nMessage to send:" << std::endl;
     Message message(MES, nb_msgs, msgs);
-    Message::displayMessage(message);
-    Message::displaySerialized(message.serialize());
-    std::cout << std::endl;
+    // Message::displayMessage(message);
+    // Message::displaySerialized(message.serialize());
+    // std::cout << std::endl;
   
     // Send message to receiver
     if (sendto(socket, message.serialize(), message.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
@@ -45,11 +45,11 @@ void SenderPort::send()
       throw std::runtime_error(os.str());
     }
 
-    std::cout << "Message sent successfully.\n";
+    // std::cout << "Message sent successfully." << std::endl;
 
     // Terminate if all messages have been sent
     if (it == setSnapshot.end()) {
-      std::cout << "All messages in queue sent.\n";
+      // std::cout << "All messages in queue sent." << std::endl;
       break;
     }
   }
@@ -86,7 +86,7 @@ ReceiverPort::ReceiverPort(int socket, proc_id_t source_id, sockaddr_in source_a
 
 std::vector<bool> ReceiverPort::respond(Message message)
 {
-  deliveredMessages.display();
+  // deliveredMessages.display();
 
   // Update delivered message set and construct delivery status vector
   std::vector<bool> delivery_status = deliveredMessages.insert(message.getSeqs());
@@ -128,11 +128,11 @@ std::vector<bool> PerfectLink::receive(Message mes)
   else if (type == ACK) {
     // Process ACK on sender link
     sendPort.receiveAck(mes.getPayloads());
-    std::cout << "Processed ACK for messages: ";
+    // std::cout << "Processed ACK for messages: ";
     for (msg_seq_t seq: mes.getSeqs()) {
-      std::cout << seq << " ";
+      // std::cout << seq << " ";
       }
-    std::cout << "\n";
+    // std::cout << "" << std::endl;
     return {};
   }
   else {

@@ -115,7 +115,7 @@ void SlidingSet<T, Compare>::display() const
   for (T value: set_) {
     std::cout << ", " << value;
   }
-  std::cout << "\n";
+  std::cout << "" << std::endl;
 }
 
 // Capacity methods

@@ -7,7 +7,7 @@ static int test_failed = 0;
 #define IS_TRUE(x) do { if (!(x)) {std::cout << __FUNCTION__ << " failed on line " << __LINE__ << std::endl; test_failed = 1; } } while (0)
 
 static void testMessageSerialization() {
-  std::cout << "Running " << __FUNCTION__ << std::endl;
+  // std::cout << "Running " << __FUNCTION__ << std::endl;
 
   proc_id_t origin_id = 123456789;
   uint8_t nb_mes = 8;

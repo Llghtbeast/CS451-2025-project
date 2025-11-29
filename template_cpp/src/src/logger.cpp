@@ -77,7 +77,7 @@ void Logger::cleanup()
  */
 void Logger::write()
 {
-  std::cout << queue.size() << " log lines to write." << std::endl;
+  // std::cout << queue.size() << " log lines to write." << std::endl;
   std::vector<std::string> local {};
   // swap shared queue into local buffer under lock
   {
