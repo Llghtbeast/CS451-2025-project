@@ -110,27 +110,23 @@ int main(int argc, char **argv) {
   std::thread node_thread(&Node::start, &node);
   node_thread.detach();
   
-  if (parser.id() == recv_id) {
-    std::cout << "Receiver created and waiting to receive\n";
-  } else {
-    std::cout << "Sender created and starting to send " << total_m << " messages\n"; 
+  std::cout << "Node started successfully.\n\n";
     
-    // Start clock to measure Sender execution time
-    auto start_time = std::chrono::high_resolution_clock::now();
-        
-    // Start enqueueing messages if this is a sender
-    for (size_t i = 0; i < total_m; i++) {
-      // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
-      node.broadcast(parser.id());
-    }
-    std::cout << "All messages enqueued.\n\n";
-    node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
-    node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
-    
-    auto stop_time = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::milliseconds> (stop_time - start_time);
-    std::cout << "\nSender execution duration: " << duration.count() << " milliseconds\n\n";
+  // Start clock to measure Sender execution time
+  auto start_time = std::chrono::high_resolution_clock::now();
+      
+  // Start enqueueing messages if this is a sender
+  for (size_t i = 0; i < total_m; i++) {
+    // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
+    node.broadcast(parser.id());
   }
+  std::cout << "All messages enqueued.\n\n";
+  node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
+  node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
+  
+  auto stop_time = std::chrono::high_resolution_clock::now();
+  auto duration = std::chrono::duration_cast<std::chrono::milliseconds> (stop_time - start_time);
+  std::cout << "Node execution duration: " << duration.count() << " milliseconds\n\n";
 
   // After a process finishes broadcasting,
   // it waits forever for the delivery of messages.

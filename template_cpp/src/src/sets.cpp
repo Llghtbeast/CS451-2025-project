@@ -2,6 +2,9 @@
 
 // ===================== ConcurrentSet start ===================== //
 template <typename T, typename Compare>
+ConcurrentSet<T, Compare>::ConcurrentSet(): maxSize_(MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_QUEUE_SIZE) {}
+
+template <typename T, typename Compare>
 ConcurrentSet<T, Compare>::ConcurrentSet(size_t maxSize): maxSize_(maxSize), set_({}) {}
 
 // Capacity methods
@@ -98,6 +101,9 @@ template class ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>;
 
 
 // ===================== SlidingSet start ===================== //
+template <typename T, typename Compare>
+SlidingSet<T, Compare>::SlidingSet(): set_({0}) {}
+
 template <typename T, typename Compare>
 SlidingSet<T, Compare>::SlidingSet(T first_prefix): set_({first_prefix}) {}
 

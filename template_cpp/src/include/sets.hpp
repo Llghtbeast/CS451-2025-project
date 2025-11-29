@@ -17,6 +17,7 @@ class ConcurrentSet {
 public:
   using value_type = T;
 
+  ConcurrentSet();
   ConcurrentSet(size_t maxSize);
   ~ConcurrentSet() = default;
 
@@ -47,6 +48,7 @@ class SlidingSet {
 public:
   using value_type = T;
 
+  SlidingSet();
   SlidingSet(T first_prefix);
   ~SlidingSet() = default;
 

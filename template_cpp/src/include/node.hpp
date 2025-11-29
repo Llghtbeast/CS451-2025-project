@@ -1,3 +1,5 @@
+#pragma once
+
 #include <chrono>
 #include <thread>
 #include <sys/socket.h>
@@ -19,6 +21,7 @@
 #include "message.hpp"
 #include "logger.hpp"
 #include "sets.hpp"
+#include "maps.hpp"
 #include "globals.hpp"
 
 /**
@@ -49,6 +52,14 @@ public:
    * @param seq The sequence number of the message. If origin_id is this node's ID, this parameter is ignored.
    */
   void broadcast(proc_id_t origin_id, msg_seq_t seq = 0);
+
+  /**
+   * Determines if a message can be delivered based on the acknowledgments received from other nodes.
+   * @param origin_id The ID of the origin node of the message.
+   * @param seq The sequence number of the message.
+   * @return true if the message can be delivered, false otherwise.
+   */
+  bool can_deliver(proc_id_t origin_id, msg_seq_t seq);
 
   /**
    * Terminates the node's sending and listening threads.
@@ -98,9 +109,9 @@ private:
   std::unordered_map<std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
-  // std::unordered_map<proc_id_t, ConcurrentSet<msg_seq_t>> pending_messages;
-  // std::unordered_map<proc_id_t, SlidingSet<msg_seq_t>> delivered_messages;
-  // std::unordered_map<proc_id_t, std::unordered_map<msg_seq_t, std::set<proc_id_t>>> acked_by;
+  std::unordered_map<proc_id_t, ConcurrentSet<msg_seq_t>> pending_messages;
+  std::unordered_map<proc_id_t, SlidingSet<msg_seq_t>> delivered_messages;
+  std::unordered_map<proc_id_t, ConcurrentMap<msg_seq_t, std::set<proc_id_t>>> acked_by;
 
   std::thread sender_thread;
   std::thread listener_thread;

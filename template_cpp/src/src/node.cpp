@@ -1,7 +1,8 @@
 #include "node.hpp"
 
 Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath)
-  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size())//, pending_messages(Message::max_msgs * Port::window_size * MAX_QUEUE_SIZE), acked_by({})
+  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size()), 
+    pending_messages(), delivered_messages(), acked_by()
   {
     // Initialize run flag
     runFlag.store(false);
@@ -42,7 +43,9 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
       }
 
       // Initialize delivered messages set for each node
-      // delivered_messages[n.id] = SlidingSet<msg_seq_t>(0);
+      pending_messages.try_emplace(n.id);
+      delivered_messages.try_emplace(n.id);
+      acked_by.try_emplace(n.id);
     }
   }
 
@@ -70,6 +73,7 @@ void Node::enqueueMessage(sockaddr_in dest)
 
 void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
 {
+  // Check if broadcasting node is this node
   if (seq == 0) assert(origin_id == id);
   if (origin_id == id) {
     // Increment message sequence number
@@ -84,8 +88,13 @@ void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
   
   // Log broadcast, add to pending messages and acked_by structures
   logger->logBroadcast(m_seq);
-  // pending_messages.insert(m_seq);
-  // acked_by[m_seq] = {id};
+  pending_messages[origin_id].insert(seq);
+  acked_by[origin_id].add_to_mapped_set(seq, origin_id);
+}
+
+bool Node::can_deliver(proc_id_t origin_id, msg_seq_t seq)
+{
+  return acked_by[origin_id].mapped_set_size(seq) > nb_nodes / 2;
 }
 
 void Node::send()
@@ -133,32 +142,39 @@ void Node::listen()
   
     // Process message through perfect link -> extract new received messages
     std::vector<bool> received_msgs = links[sender_ip_and_port]->receive(msg);
-    std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msg_seqs = msg.getPayloads();
+    std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msg_payload = msg.getPayloads();
 
     // If received_msgs is empty, it means an ACK was received, so skip delivery processing
     if (received_msgs.empty()) continue;
 
     // Deliver message
     for (size_t i = 0; i < msg.getNbMes(); i++) {
-      // Check if message was not already received
+      // Check if message was received
       if (!received_msgs[i]) continue;
 
-      // Check if message is already in pending set
-      // auto& const [_, origin_id, seq] = msg_seqs[i];
-      // std::tuple<proc_id_t, msg_seq_t> msg_tuple = std::make_tuple(origin_id, seq);
-      // if (pending_messages.contains(msg_tuple)) {;
-      //   Update acked_by structure
-      //   acked_by[msg_tuple].insert(sender_ip_and_port);
-      //   can_deliver(msg_tuple);
-      // } else {
-      //   Add message to pending messages and acked_by structures
-      //   pending_messages.insert(msg_tuple);
-      //   acked_by[msg_tuple] = { sender_ip_and_port };
-      //   broadcast(origin_id, seq);
-      //   can_deliver(msg_tuple);
-      // }
+      const auto& [_, origin_id, seq] = msg_payload[i];
+      
+      // Check that message has not already been delivered
+      if (delivered_messages[origin_id].contains(seq)) continue;
+      
+      // Update acked_by structure
+      acked_by[origin_id].add_to_mapped_set(seq, others_id[sender_ip_and_port]);
 
-      logger->logDelivery(std::get<1>(msg_seqs[i]), std::get<2>(msg_seqs[i]));
+      // Check if message is already in pending set
+      if (!pending_messages[origin_id].contains(seq)) {;
+        // Add message to pending messages and acked_by structures
+        pending_messages[origin_id].insert(seq);
+        broadcast(origin_id, seq);
+      }
+
+      // Check if message can be delivered
+      if (can_deliver(origin_id, seq)) {
+        // Log delivery
+        logger->logDelivery(origin_id, seq);
+        // Remove from pending messages
+        pending_messages[origin_id].erase(seq);
+        acked_by[origin_id].erase(seq);
+      } 
     }
   }
 }

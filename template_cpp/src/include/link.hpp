@@ -1,3 +1,5 @@
+#pragma once
+
 #include <sys/socket.h>
 #include <string.h>
 #include <cstring>
