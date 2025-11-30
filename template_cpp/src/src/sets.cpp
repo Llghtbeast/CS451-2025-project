@@ -26,17 +26,18 @@ std::size_t ConcurrentSet<T, Compare>::size() const
 template <typename T, typename Compare>
 typename std::set<T, Compare>::iterator ConcurrentSet<T, Compare>::insert(const T &value)
 {
+  std::lock_guard<std::mutex> lock(mutex_);
   // Wait until there is space in the set
-  std::unique_lock<std::mutex> lock(mutex_);
-  cv_.wait(lock, [&]() {
-    return set_.size() < maxSize_;
-  });
+  // std::unique_lock<std::mutex> lock(mutex_);
+  // cv_.wait(lock, [&]() {
+  //   return set_.size() < maxSize_;
+  // });
   
   // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
   auto result = set_.insert(set_.end(), value); 
   
   // Notify any waiting threads that a new message has been enqueued
-  lock.unlock();
+  // lock.unlock();
 
   return result;
 }
@@ -45,21 +46,23 @@ template <typename T, typename Compare>
 void ConcurrentSet<T, Compare>::erase(const T &value)
 {
   // Lock the set while modifying it
-  std::unique_lock<std::mutex> lock(mutex_);
+  // std::unique_lock<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   
   // Remove message from set (correctly delivered at target)
   set_.erase(value);
     
   // Notify the waiting enqueuer thread that space is available in the set
-  lock.unlock();
-  cv_.notify_one();
+  // lock.unlock();
+  // cv_.notify_one();
 }
 
 template <typename T, typename Compare>
 void ConcurrentSet<T, Compare>::erase(const std::vector<T> &values)
 {
   // Lock the set while modifying it
-  std::unique_lock<std::mutex> lock(mutex_);
+  // std::unique_lock<std::mutex> lock(mutex_);
+  std::lock_guard<std::mutex> lock(mutex_);
   
   // Remove message from set (correctly delivered at target)
   for (T value: values) {
@@ -67,8 +70,8 @@ void ConcurrentSet<T, Compare>::erase(const std::vector<T> &values)
   }
   
   // Notify the waiting enqueuer thread that space is available in the set
-  lock.unlock();
-  cv_.notify_one();
+  // lock.unlock();
+  // cv_.notify_one();
 }
 
 // Lookup

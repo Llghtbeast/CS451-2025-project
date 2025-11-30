@@ -105,35 +105,41 @@ int main(int argc, char **argv) {
   // Create node
   Node node(hosts, parser.id(), parser.outputPath());
   p_node = &node;
-  
-  // Start node (sending and listening)
-  std::thread node_thread(&Node::start, &node);
-  node_thread.detach();
-  
-  std::cout << "Node started successfully.\n" << std::endl;
-    
-  // Start clock to measure Sender execution time
-  auto start_time = std::chrono::high_resolution_clock::now();
+
+  try {
+
+    // Start node (sending, listening and logging)
+    node.start();
+    std::cout << "Node started successfully.\n" << std::endl;
       
-  // Start enqueueing messages if this is a sender
-  for (size_t i = 0; i < total_m; i++) {
-    // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
-    node.broadcast(parser.id());
-  }
-
-  std::cout << "All messages enqueued.\n" << std::endl;
-  // node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
-  // node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
+    // Start clock to measure Sender execution time
+    // auto start_time = std::chrono::high_resolution_clock::now();
+        
+    // Start enqueueing messages if this is a sender
+    for (size_t i = 0; i < total_m; i++) {
+      // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
+      node.broadcast(parser.id());
+    }
   
-  // auto stop_time = std::chrono::high_resolution_clock::now();
-  // auto duration = std::chrono::duration_cast<std::chrono::milliseconds> (stop_time - start_time);
-  // std::cout << "Node execution duration: " << duration.count() << " milliseconds\n" << std::endl;
-
-  // After a process finishes broadcasting,
-  // it waits forever for the delivery of messages.
-  while (true) {
-    std::this_thread::sleep_for(std::chrono::hours(1));
+    std::cout << "All messages enqueued.\n" << std::endl;
+    
+    // node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
+    // node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
+    
+    // auto stop_time = std::chrono::high_resolution_clock::now();
+    // auto duration = std::chrono::duration_cast<std::chrono::milliseconds> (stop_time - start_time);
+    // std::cout << "Node execution duration: " << duration.count() << " milliseconds\n" << std::endl;
+  
+    // After a process finishes broadcasting,
+    // it waits forever for the delivery of messages.
+    while (true) {
+      std::this_thread::sleep_for(std::chrono::hours(1));
+    }
   }
-
+  catch (const std::exception& e) {
+    std::cout << e.what() << std::endl;
+    stop(0);
+  }  
+  
   return 0;
 }

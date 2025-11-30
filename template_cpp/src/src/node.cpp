@@ -2,7 +2,7 @@
 
 Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath)
   : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size()), 
-    pending_messages(), delivered_messages(), acked_by()
+    pending_messages(), next_expected_msg(), acked_by()
   {
     // Initialize run flag
     runFlag.store(false);
@@ -44,7 +44,7 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
 
       // Initialize delivered messages set for each node
       pending_messages.try_emplace(n.id);
-      delivered_messages.try_emplace(n.id);
+      next_expected_msg.try_emplace(n.id, 1);
       acked_by.try_emplace(n.id);
     }
   }
@@ -98,7 +98,11 @@ void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
 
 bool Node::can_deliver(proc_id_t origin_id, msg_seq_t seq)
 {
-  return acked_by[origin_id].mapped_set_size(seq) > nb_nodes / 2;
+  // Check if seq is the next expected message and that more than half the process have acked that msg.
+  if (next_expected_msg[origin_id] == seq) {
+    return acked_by[origin_id].mapped_set_size(seq) > nb_nodes / 2;
+  }
+  return false;
 }
 
 void Node::send()
@@ -131,7 +135,9 @@ void Node::listen()
     // Sleeps until message received.
     ssize_t bytes_received = recvfrom(node_socket, buffer.data(), Message::max_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len);
     if (bytes_received < 0) {
-      throw std::runtime_error("recvfrom failed ");
+      std::cout << "recvfrom failed\n";
+      continue;
+      // throw std::runtime_error("recvfrom failed ");
     }
     else if (bytes_received == 0) {
       // std::cout << "Socket shutdown, stopping network packet processing." << std::endl;
@@ -160,7 +166,7 @@ void Node::listen()
       const auto& [_, origin_id, seq] = msg_payload[i];
       
       // If message has already been delivered, SKIP
-      if (delivered_messages[origin_id].contains(seq)) continue;
+      if (seq < next_expected_msg[origin_id]) continue;
       
       // Update acked_by structure
       acked_by[origin_id].add_to_mapped_set(seq, others_id[sender_ip_and_port]); // Ack by sender of message
@@ -175,54 +181,30 @@ void Node::listen()
       }
 
       // Print received message and all data structures
-      std::cout << "\n=== Message State ===" << std::endl;
-      std::cout << "Received message (" << origin_id << ", " << seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
+      // std::cout << "\n=== Message State ===" << std::endl;
+      // std::cout << "Received message (" << origin_id << ", " << seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
       
-      // Print pending messages
-      std::cout << "\nPending messages:" << std::endl;
-      for (const auto& [origin, pending_set]: pending_messages) {
-        std::vector<msg_seq_t> pending_snapshot = pending_set.snapshot();
-        std::cout << "  Origin " << origin << ": ";
-        for (msg_seq_t m : pending_snapshot) {
-          std::cout << m << " ";
-        }
-        std::cout << std::endl;
-      }
-      
-      // Print delivered messages
-      std::cout << "\nDelivered messages:" << std::endl;
-      for (const auto& [origin, delivered_set]: delivered_messages) {
-        std::cout << "  Origin " << origin << ": ";
-        delivered_set.display();
-      }
-      
-      // Print acked_by map
-      std::cout << "\nAcked by:" << std::endl;
-      for (const auto& [origin, acked_map]: acked_by) {
-        std::cout << "  Origin " << origin << ":" << std::endl;
-        auto acked_snapshot = acked_map.snapshot();
-        for (const auto& [msg_seq, ack_set] : acked_snapshot) {
-          std::cout << "    Seq " << msg_seq << ": {";
-          for (proc_id_t acker : ack_set) {
-            std::cout << acker << " ";
-          }
-          std::cout << "}" << std::endl;
-        }
-      }
+      // if (can_deliver(origin_id, seq)) std::cout << "Delivering message: (" << origin_id << ", " << seq << ")" << std::endl;
+      // std::cout << "==================\n" << std::endl;
 
-      if (can_deliver(origin_id, seq)) std::cout << "Delivering message: (" << origin_id << ", " << seq << ")" << std::endl;
-      std::cout << "==================\n" << std::endl;
+      // Try delivering this message and subsequent messages
+      msg_seq_t msg_to_deliver = seq;
+      while (true) {
+        // If a message cannot be delivered, exit delivering loop
+        if (!can_deliver(origin_id, msg_to_deliver)) break;
 
-      // Check if message can be delivered
-      if (can_deliver(origin_id, seq)) {
-        // std::cout << "Delivering (" << origin_id << ", " << seq << ")" << std::endl;
+        // Deliver the message and try on next message
         // Log delivery
-        logger->logDelivery(origin_id, seq);
+        logger->logDelivery(origin_id, msg_to_deliver);
         // Remove from pending messages
-        pending_messages[origin_id].erase(seq);
-        acked_by[origin_id].erase(seq);
-        delivered_messages[origin_id].insert(seq);
-      } 
+        pending_messages[origin_id].erase(msg_to_deliver);
+        acked_by[origin_id].erase(msg_to_deliver);
+
+        // Add to delivered messages
+        next_expected_msg[origin_id]++;
+
+        msg_to_deliver++;
+      }
     }
   }
 }

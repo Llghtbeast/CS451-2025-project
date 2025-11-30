@@ -26,14 +26,12 @@ void SenderPort::send()
   for (size_t i = 0; i < window_size; i++) {
     std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msgs;
 
-    uint8_t nb_msgs = 0;
-    for (nb_msgs = 0; nb_msgs < Message::max_msgs && it != setSnapshot.end(); nb_msgs++, it++) {
+    for (size_t i = 0; i < Message::max_msgs && it != setSnapshot.end(); i++, it++) {
       msgs.push_back(*it);
     }
     
-    // Create message to send and display
-    // std::cout << "\nMessage to send:" << std::endl;
-    Message message(MES, nb_msgs, msgs);
+    assert(msgs.size() <= 8);
+    Message message(MES, static_cast<uint8_t>(msgs.size()), msgs);
     // Message::displayMessage(message);
     // Message::displaySerialized(message.serialize());
     // std::cout << std::endl;
@@ -42,7 +40,9 @@ void SenderPort::send()
     if (sendto(socket, message.serialize(), message.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
       std::ostringstream os;
       os << "Failed to send message " << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
-      throw std::runtime_error(os.str());
+      std::cout << os.str() << "\n";
+      continue;
+      // throw std::runtime_error(os.str());
     }
 
     // std::cout << "Message sent successfully." << std::endl;
@@ -98,7 +98,9 @@ std::vector<bool> ReceiverPort::respond(Message message)
   if (sendto(socket, ackMsg.serialize(), ackMsg.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
     std::ostringstream os;
     os << "Failed to send ACK (errno: " << strerror(errno) << ") from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
-    throw std::runtime_error(os.str());
+    std::cout << os.str() << "\n";
+    return {};
+    // throw std::runtime_error(os.str());
   }
   return delivery_status;
 }

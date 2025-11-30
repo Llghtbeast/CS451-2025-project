@@ -5,8 +5,7 @@ Message::Message(MessageType type, uint8_t nb_m,
                  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads)
     : m_type(type), origin_id(0), nb_mes(nb_m), payload(std::move(payloads)) 
 {
-  assert(type == MessageType::MES);
-  assert(nb_m == payloads.size());
+  assert(nb_m == payload.size());
 }
 
 // Message::Message(MessageType type, uint8_t nb_m, std::vector<msg_seq_t> seqs)
