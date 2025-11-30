@@ -1,67 +1,29 @@
 #!/usr/bin/env python3
 
-import subprocess
 import sys
-import os
-import re
+import argparse
 from collections import defaultdict
 from pathlib import Path
 
-class FIFOURBVerifier:
-    def __init__(self, output_dir, num_processes):
+
+class FIFOURBValidator:
+    def __init__(self, output_dir, num_processes, failed_processes):
         self.output_dir = Path(output_dir)
         self.num_processes = num_processes
-        self.failed_processes = set()
+        self.failed_processes = set(failed_processes)
         self.broadcasts = defaultdict(list)  # process_id -> [message_ids]
         self.deliveries = defaultdict(lambda: defaultdict(list))  # process_id -> sender_id -> [message_ids]
         
-    def run_stress_test(self, stress_cmd):
-        """Run the stress test and capture output"""
-        print(f"Running stress test: {' '.join(stress_cmd)}")
-        print("=" * 80)
-        
-        try:
-            result = subprocess.run(
-                stress_cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minute timeout
-            )
-            
-            print("STDOUT:")
-            print(result.stdout)
-            print("\nSTDERR:")
-            print(result.stderr)
-            print("=" * 80)
-            
-            # Extract failed processes from output
-            self._extract_failed_processes(result.stdout)
-            self._extract_failed_processes(result.stderr)
-            
-            return result.returncode == 0
-            
-        except subprocess.TimeoutExpired:
-            print("ERROR: Stress test timed out!")
-            return False
-        except Exception as e:
-            print(f"ERROR: Failed to run stress test: {e}")
-            return False
-    
-    def _extract_failed_processes(self, output):
-        """Extract process IDs that received SIGTERM"""
-        pattern = r"Sending SIGTERM to process (\d+)"
-        matches = re.findall(pattern, output)
-        for match in matches:
-            process_id = int(match)
-            self.failed_processes.add(process_id)
-            print(f"Detected failed process: {process_id}")
-    
     def parse_output_files(self):
         """Parse all output files and extract broadcasts and deliveries"""
         print("\nParsing output files...")
+        print(f"Output directory: {self.output_dir}")
+        print(f"Number of processes: {self.num_processes}")
+        print(f"Failed processes: {sorted(self.failed_processes) if self.failed_processes else 'None'}")
+        print()
         
         for i in range(1, self.num_processes + 1):
-            output_file = self.output_dir / f"{i}.output"
+            output_file = self.output_dir / f"proc{i:02d}.output"
             
             if not output_file.exists():
                 print(f"WARNING: Output file {output_file} not found")
@@ -81,7 +43,7 @@ class FIFOURBVerifier:
                                 msg_id = int(parts[1])
                                 self.broadcasts[i].append(msg_id)
                             except ValueError:
-                                print(f"WARNING: Invalid broadcast in {i}.output line {line_num}: {line}")
+                                print(f"WARNING: Invalid broadcast in proc{i:02d}.output line {line_num}: {line}")
                     
                     # Parse delivery: "d p i"
                     elif line.startswith('d '):
@@ -92,15 +54,24 @@ class FIFOURBVerifier:
                                 msg_id = int(parts[2])
                                 self.deliveries[i][sender].append(msg_id)
                             except ValueError:
-                                print(f"WARNING: Invalid delivery in {i}.output line {line_num}: {line}")
+                                print(f"WARNING: Invalid delivery in proc{i:02d}.output line {line_num}: {line}")
         
-        print(f"Parsed {len(self.broadcasts)} process output files")
-        print(f"Failed processes: {sorted(self.failed_processes) if self.failed_processes else 'None'}")
+        print(f"Successfully parsed {len(self.broadcasts)} process output files")
+        
+        # Print statistics
+        total_broadcasts = sum(len(msgs) for msgs in self.broadcasts.values())
+        total_deliveries = sum(
+            sum(len(msgs) for msgs in sender_msgs.values())
+            for sender_msgs in self.deliveries.values()
+        )
+        print(f"Total broadcasts: {total_broadcasts}")
+        print(f"Total deliveries: {total_deliveries}")
     
     def verify_validity(self):
         """URB Validity: If a correct process broadcasts m, then it eventually delivers m"""
         print("\n" + "=" * 80)
         print("Checking VALIDITY property...")
+        print("Property: If a correct process broadcasts m, then it eventually delivers m")
         violations = []
         
         correct_processes = set(range(1, self.num_processes + 1)) - self.failed_processes
@@ -111,7 +82,10 @@ class FIFOURBVerifier:
             
             not_delivered = broadcasted - delivered
             if not_delivered:
-                violations.append(f"Process {process_id} broadcast but didn't deliver: {sorted(not_delivered)[:10]}")
+                violations.append(
+                    f"Process {process_id} broadcast {len(not_delivered)} messages but didn't deliver them. "
+                    f"Examples: {sorted(not_delivered)[:10]}"
+                )
         
         if violations:
             print("VALIDITY VIOLATED:")
@@ -126,20 +100,27 @@ class FIFOURBVerifier:
         """URB No Duplication: No message is delivered more than once"""
         print("\n" + "=" * 80)
         print("Checking NO DUPLICATION property...")
+        print("Property: No message is delivered more than once")
         violations = []
         
         for process_id in range(1, self.num_processes + 1):
             for sender_id, messages in self.deliveries[process_id].items():
-                seen = set()
-                for msg_id in messages:
+                seen = {}
+                for idx, msg_id in enumerate(messages):
                     if msg_id in seen:
-                        violations.append(f"Process {process_id} delivered ({sender_id}, {msg_id}) multiple times")
-                    seen.add(msg_id)
+                        violations.append(
+                            f"Process {process_id} delivered ({sender_id}, {msg_id}) multiple times "
+                            f"(at positions {seen[msg_id]} and {idx})"
+                        )
+                    else:
+                        seen[msg_id] = idx
         
         if violations:
             print("NO DUPLICATION VIOLATED:")
             for v in violations[:10]:  # Show first 10
                 print(f"  - {v}")
+            if len(violations) > 10:
+                print(f"  ... and {len(violations) - 10} more violations")
             return False
         else:
             print("NO DUPLICATION satisfied")
@@ -149,6 +130,7 @@ class FIFOURBVerifier:
         """URB No Creation: If a process delivers m with sender s, then s previously broadcast m"""
         print("\n" + "=" * 80)
         print("Checking NO CREATION property...")
+        print("Property: If a process delivers m with sender s, then s previously broadcast m")
         violations = []
         
         for process_id in range(1, self.num_processes + 1):
@@ -157,12 +139,17 @@ class FIFOURBVerifier:
                 
                 for msg_id in delivered_msgs:
                     if msg_id not in broadcasted:
-                        violations.append(f"Process {process_id} delivered ({sender_id}, {msg_id}) but {sender_id} never broadcast it")
+                        violations.append(
+                            f"Process {process_id} delivered ({sender_id}, {msg_id}) "
+                            f"but process {sender_id} never broadcast message {msg_id}"
+                        )
         
         if violations:
             print("NO CREATION VIOLATED:")
             for v in violations[:10]:
                 print(f"  - {v}")
+            if len(violations) > 10:
+                print(f"  ... and {len(violations) - 10} more violations")
             return False
         else:
             print("NO CREATION satisfied")
@@ -172,6 +159,7 @@ class FIFOURBVerifier:
         """URB Uniform Agreement: If a process delivers m, then all correct processes eventually deliver m"""
         print("\n" + "=" * 80)
         print("Checking UNIFORM AGREEMENT property...")
+        print("Property: If a process delivers m, then all correct processes eventually deliver m")
         violations = []
         
         correct_processes = set(range(1, self.num_processes + 1)) - self.failed_processes
@@ -191,12 +179,17 @@ class FIFOURBVerifier:
                 
                 if len(delivering_correct) < len(correct_processes):
                     missing = correct_processes - set(delivering_correct)
-                    violations.append(f"Message ({sender_id}, {msg_id}) delivered by some but not all correct processes. Missing: {sorted(missing)[:5]}")
+                    violations.append(
+                        f"Message ({sender_id}, {msg_id}) delivered by {len(delivering_correct)}/{len(correct_processes)} "
+                        f"correct processes. Missing: {sorted(missing)[:5]}"
+                    )
         
         if violations:
             print("UNIFORM AGREEMENT VIOLATED:")
             for v in violations[:10]:
                 print(f"  - {v}")
+            if len(violations) > 10:
+                print(f"  ... and {len(violations) - 10} more violations")
             return False
         else:
             print("UNIFORM AGREEMENT satisfied")
@@ -206,6 +199,7 @@ class FIFOURBVerifier:
         """FIFO Order: Messages from the same sender are delivered in the order they were broadcast"""
         print("\n" + "=" * 80)
         print("Checking FIFO ORDER property...")
+        print("Property: Messages from the same sender are delivered in the order they were broadcast")
         violations = []
         
         for process_id in range(1, self.num_processes + 1):
@@ -214,8 +208,8 @@ class FIFOURBVerifier:
                 for i in range(len(delivered_msgs) - 1):
                     if delivered_msgs[i] > delivered_msgs[i + 1]:
                         violations.append(
-                            f"Process {process_id} delivered from {sender_id} out of order: "
-                            f"{delivered_msgs[i]} before {delivered_msgs[i + 1]}"
+                            f"Process {process_id} delivered messages from process {sender_id} out of order: "
+                            f"message {delivered_msgs[i]} delivered before message {delivered_msgs[i + 1]}"
                         )
                         break  # One violation per (process, sender) pair is enough
         
@@ -223,15 +217,17 @@ class FIFOURBVerifier:
             print("FIFO ORDER VIOLATED:")
             for v in violations[:10]:
                 print(f"  - {v}")
+            if len(violations) > 10:
+                print(f"  ... and {len(violations) - 10} more violations")
             return False
         else:
             print("FIFO ORDER satisfied")
             return True
     
-    def run_verification(self):
-        """Run all verification checks"""
+    def run_validation(self):
+        """Run all validation checks"""
         print("\n" + "=" * 80)
-        print("STARTING VERIFICATION")
+        print("STARTING VALIDATION")
         print("=" * 80)
         
         results = {
@@ -243,7 +239,7 @@ class FIFOURBVerifier:
         }
         
         print("\n" + "=" * 80)
-        print("VERIFICATION SUMMARY")
+        print("VALIDATION SUMMARY")
         print("=" * 80)
         for prop, passed in results.items():
             status = "PASS" if passed else "FAIL"
@@ -261,31 +257,42 @@ class FIFOURBVerifier:
 
 
 def main():
-    # Configuration
-    stress_cmd = [
-        "python3", "../tools/stress.py", "fifo",
-        "-r", "../template_cpp/run.sh",
-        "-l", "../test_output/",
-        "-p", "10",
-        "-m", "1000"
-    ]
+    parser = argparse.ArgumentParser(
+        description='Validate FIFO Uniform Reliable Broadcast output files',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  # No failed processes
+  python3 validate_fifo.py -l ../test_output/ -p 10
+  
+  # With failed processes 3 and 7
+  python3 validate_fifo.py -l ../test_output/ -p 10 -f 3 7
+  
+  # With single failed process
+  python3 validate_fifo.py -l ../test_output/ -p 10 -f 5
+        '''
+    )
     
-    output_dir = "../test_output/"
-    num_processes = 10
+    parser.add_argument('-l', '--log-dir', required=True, help='Output directory containing proc*.output files')
+    parser.add_argument('-p', '--processes', type=int, required=True, help='Total number of processes')
+    parser.add_argument('-f', '--failed', nargs='*', type=int, default=[], help='List of failed process IDs (space-separated)')
     
-    # Create verifier
-    verifier = FIFOURBVerifier(output_dir, num_processes)
+    args = parser.parse_args()
     
-    # Run stress test
-    success = verifier.run_stress_test(stress_cmd)
-    if not success:
-        print("\n⚠️  Stress test reported errors, but continuing verification...")
+    # Validate failed process IDs
+    for proc_id in args.failed:
+        if proc_id < 1 or proc_id > args.processes:
+            print(f"ERROR: Failed process ID {proc_id} is out of range [1, {args.processes}]")
+            sys.exit(1)
+    
+    # Create validator
+    validator = FIFOURBValidator(args.log_dir, args.processes, args.failed)
     
     # Parse output files
-    verifier.parse_output_files()
+    validator.parse_output_files()
     
-    # Run verification
-    all_passed = verifier.run_verification()
+    # Run validation
+    all_passed = validator.run_validation()
     
     # Exit with appropriate code
     sys.exit(0 if all_passed else 1)

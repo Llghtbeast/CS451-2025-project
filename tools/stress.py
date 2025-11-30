@@ -354,10 +354,10 @@ def main(parser_results, testConfig):
     else:
         raise ValueError("Unrecognized command")
 
-    try:
-        # Start the processes and get their PIDs
-        procs = startProcesses(processes, runscript, hostsFile, configFiles, logsDir)
+    # Start the processes and get their PIDs
+    procs = startProcesses(processes, runscript, hostsFile, configFiles, logsDir)
 
+    try:
         # Create the stress test
         st = StressTest(
             procs,
