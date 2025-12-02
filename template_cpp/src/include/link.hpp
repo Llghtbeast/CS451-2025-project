@@ -30,11 +30,10 @@ public:
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-  Port(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
+  Port(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
 
 protected:
   int socket;
-  proc_id_t source_id;
   sockaddr_in source_addr;
   sockaddr_in dest_addr;
 
@@ -53,7 +52,7 @@ public:
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-  SenderPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
+  SenderPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
   
   /**
    * Enqueues a message to be sent later.
@@ -81,7 +80,7 @@ public:
 private:
   msg_seq_t link_seq = 0;
 
-  ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> messageQueue;
+  ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>, TupleFirstElementComparator> messageQueue;
     
   std::mutex finished_mutex;
   std::condition_variable finished_cv;
@@ -100,7 +99,7 @@ public:
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-  ReceiverPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
+  ReceiverPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
   
 /**
  * Add message to delivered list, send ACK to sender, and return true if message was not already delivered. Otherwise, return false.
@@ -123,7 +122,7 @@ public:
  * @param source_addr The address to which messages will be sent.
  * @param dest_addr The address from which messages will be received.
  */
-  PerfectLink(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr);
+  PerfectLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr);
 
   void enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq);
   void send();

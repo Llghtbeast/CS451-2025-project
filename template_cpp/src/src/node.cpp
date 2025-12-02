@@ -39,7 +39,7 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
         others_id[addr_hashable] = n.id;
 
         // Create network links
-        links[addr_hashable] = std::make_unique<PerfectLink>(node_socket, id, node_addr, n_addr);
+        links[addr_hashable] = std::make_unique<PerfectLink>(node_socket, node_addr, n_addr);
       }
 
       // Initialize delivered messages set for each node
@@ -64,15 +64,9 @@ void Node::start()
   logger_thread = std::thread(&Node::log, this);
 }
 
-void Node::enqueueMessage(sockaddr_in dest)
-{
-  std::string dest_str = ipAddressToString(dest);
-  links[dest_str]->enqueueMessage(id, ++m_seq);
-  logger->logBroadcast(m_seq);
-}
-
 void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
 {
+  std::cout << "Broadcasting" << std::endl;
   // Check if broadcasting node is this node
   if (seq == 0) assert(origin_id == id);
   if (origin_id == id) {
@@ -80,7 +74,42 @@ void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
     m_seq++;
     seq = m_seq;
   }
+}
 
+void Node::cleanup() 
+{
+  close(node_socket);
+  logger->cleanup();
+}
+
+void Node::flushToOutput() 
+{
+  // Flush output stream to ensure all received messages are logged.
+  logger->write();
+  logger->flush();
+}
+
+void Node::terminate()
+{
+  // Stop the node's sending and listening threads (finish execution and exit)
+  runFlag.store(false);
+
+  // flush standard output to debug
+  // std::cout << std::endl;
+
+  // unblock recvfrom if it's blocked
+  ::shutdown(node_socket, SHUT_RDWR);
+
+  // join threads (wait for loops to exit)
+  if (sender_thread.joinable()) sender_thread.join();
+  if (listener_thread.joinable()) listener_thread.join();
+  if (logger_thread.joinable()) logger_thread.join();
+}
+
+// Private methods:
+
+void Node::enqueue()
+{
   // Enqueue message on all perfect links
   for (auto &pair: links) {
     // std::cout << "enqueuing message to " << pair.first << ": (" << origin_id << ", "<< seq << ")" << std::endl;
@@ -96,19 +125,11 @@ void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
   }
 }
 
-bool Node::can_deliver(proc_id_t origin_id, msg_seq_t seq)
-{
-  // Check if seq is the next expected message and that more than half the process have acked that msg.
-  if (next_expected_msg[origin_id] == seq) {
-    return acked_by[origin_id].mapped_set_size(seq) > nb_nodes / 2;
-  }
-  return false;
-}
-
 void Node::send()
 {
   while (runFlag.load())
   {
+    std::cout << "Sending messages" << std::endl;
     // Try sending messages from all sender links
     for (auto &pair: links) {
       // Send messages enqueued on each sender link
@@ -127,7 +148,7 @@ void Node::listen()
   while (runFlag.load())
   {
     // Prepare buffer to receive message
-    // std::cout << "Listening for message" << std::endl;
+    std::cout << "Listening for message" << std::endl;
     std::vector<char> buffer(Message::max_size);
     sockaddr_in sender_addr;
     socklen_t addr_len = sizeof(sender_addr);
@@ -214,47 +235,17 @@ void Node::log() {
   while (runFlag.load())
   {
     // Periodically write log entries to file
+    std::cout << "Logging" << std::endl;
     logger->write();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    std::this_thread::sleep_for(std::chrono::milliseconds(LOG_TIMEOUT));
   }
 }
 
-void Node::terminate()
+bool Node::can_deliver(proc_id_t origin_id, msg_seq_t seq)
 {
-  // Stop the node's sending and listening threads (finish execution and exit)
-  runFlag.store(false);
-
-  // flush standard output to debug
-  // std::cout << std::endl;
-
-  // unblock recvfrom if it's blocked
-  ::shutdown(node_socket, SHUT_RDWR);
-
-  // join threads (wait for loops to exit)
-  if (sender_thread.joinable()) sender_thread.join();
-  if (listener_thread.joinable()) listener_thread.join();
-  if (logger_thread.joinable()) logger_thread.join();
-}
-
-void Node::allMessagesEnqueued(sockaddr_in dest) {
-  std::string dest_str = ipAddressToString(dest);
-  links[dest_str]->allMessagesEnqueued();
-}
-
-void Node::finished(sockaddr_in dest) {
-  std::string dest_str = ipAddressToString(dest);
-  links[dest_str]->finished();
-}
-
-void Node::cleanup() 
-{
-  close(node_socket);
-  logger->cleanup();
-}
-
-void Node::flushToOutput() 
-{
-  // Flush output stream to ensure all received messages are logged.
-  logger->write();
-  logger->flush();
+  // Check if seq is the next expected message and that more than half the process have acked that msg.
+  if (next_expected_msg[origin_id] == seq) {
+    return acked_by[origin_id].mapped_set_size(seq) > nb_nodes / 2;
+  }
+  return false;
 }

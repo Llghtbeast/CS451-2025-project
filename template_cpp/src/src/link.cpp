@@ -1,15 +1,16 @@
 #include "link.hpp"
 
 /* =============================== Port Implementation =============================== */
-Port::Port(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr) 
-  : socket(socket), source_id(source_id), source_addr(source_addr), dest_addr(dest_addr) {}
+Port::Port(int socket, sockaddr_in source_addr, sockaddr_in dest_addr) 
+  : socket(socket), source_addr(source_addr), dest_addr(dest_addr) {}
 
-SenderPort::SenderPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Port(socket, source_id, source_addr, dest_addr), messageQueue(Message::max_msgs * window_size * MAX_QUEUE_SIZE)
+SenderPort::SenderPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : Port(socket, source_addr, dest_addr), messageQueue(Message::max_msgs * window_size * MAX_QUEUE_SIZE)
 {}
 
 void SenderPort::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
 {
+  std::cout << "Message queue size: " << messageQueue.size() << std::endl;
   link_seq++;
   std::tuple<msg_seq_t, proc_id_t, msg_seq_t> messageTuple = std::make_tuple(link_seq, origin_id, m_seq);
   messageQueue.insert(messageTuple); 
@@ -81,8 +82,8 @@ void SenderPort::finished() {
   return;
 }
 
-ReceiverPort::ReceiverPort(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Port(socket, source_id, source_addr, dest_addr), deliveredMessages(INITIAL_SLIDING_SET_PREFIX) {}
+ReceiverPort::ReceiverPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : Port(socket, source_addr, dest_addr), deliveredMessages() {}
 
 std::vector<bool> ReceiverPort::respond(Message message)
 {
@@ -106,8 +107,8 @@ std::vector<bool> ReceiverPort::respond(Message message)
 }
 
 /* =============================== Link Implementation =============================== */
-PerfectLink::PerfectLink(int socket, proc_id_t source_id, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : sendPort(socket, source_id, source_addr, dest_addr), recvPort(socket, source_id, source_addr, dest_addr) {}
+PerfectLink::PerfectLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
+  : sendPort(socket, source_addr, dest_addr), recvPort(socket, source_addr, dest_addr) {}
 
 void PerfectLink::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
 {

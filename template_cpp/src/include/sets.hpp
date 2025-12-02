@@ -11,6 +11,14 @@
 
 #include "globals.hpp"
 
+// Generic comparator for tuples
+struct TupleFirstElementComparator {
+    template<typename Tuple>
+    bool operator()(const Tuple& a, const Tuple& b) const {
+        return std::get<0>(a) < std::get<0>(b);
+    }
+};
+
 // Concurrent set
 template <typename T, typename Compare = std::less<T>>
 class ConcurrentSet {

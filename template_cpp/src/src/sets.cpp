@@ -99,13 +99,12 @@ std::vector<T> ConcurrentSet<T, Compare>::snapshot() const
 
 // Explicit template instantiation for msg_seq_t
 template class ConcurrentSet<msg_seq_t>;
-template class ConcurrentSet<std::tuple<proc_id_t, msg_seq_t>>;
-template class ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>;
+template class ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>, TupleFirstElementComparator>;
 
 
 // ===================== SlidingSet start ===================== //
 template <typename T, typename Compare>
-SlidingSet<T, Compare>::SlidingSet(): set_({0}) {}
+SlidingSet<T, Compare>::SlidingSet(): set_({INITIAL_SLIDING_SET_PREFIX}) {}
 
 template <typename T, typename Compare>
 SlidingSet<T, Compare>::SlidingSet(T first_prefix): set_({first_prefix}) {}

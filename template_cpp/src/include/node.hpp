@@ -43,28 +43,12 @@ public:
    */
   void start();
 
-  // temporary method for testing
-  void enqueueMessage(sockaddr_in dest);
-
   /**
    * Enqueues a message to be broadcast
    * @param origin_id The ID of the origin node of the message. If it is this node's ID, a new sequence number is generated. Otherwise, the provided sequence number is used.
    * @param seq The sequence number of the message. If origin_id is this node's ID, this parameter is ignored.
    */
   void broadcast(proc_id_t origin_id, msg_seq_t seq = 0);
-
-  /**
-   * Determines if a message can be delivered based on the acknowledgments received from other nodes.
-   * @param origin_id The ID of the origin node of the message.
-   * @param seq The sequence number of the message.
-   * @return true if the message can be delivered, false otherwise.
-   */
-  bool can_deliver(proc_id_t origin_id, msg_seq_t seq);
-
-  /**
-   * Terminates the node's sending and listening threads.
-   */
-  void terminate();
 
   /**
    * Cleans up resources used by the node, including closing the socket and output file.
@@ -76,12 +60,18 @@ public:
    */
   void flushToOutput();
 
-  void allMessagesEnqueued(sockaddr_in dest);
-  void finished(sockaddr_in dest);
+  /**
+   * Terminates the node's sending and listening threads.
+   */
+  void terminate();
 
 private:
   /**
-   * Message sending loop that continuously enqueues and sends messages to the specified destination address while the run flag is set.
+   * Message sending loop that continuously tries to enqueue messages to the specified destination address while the run flag is set.
+   */
+  void enqueue();
+  /**
+   * Message sending loop that continuously sends messages to the specified destination address while the run flag is set.
    */
   void send();
 
@@ -94,6 +84,14 @@ private:
    * Logger thread function that periodically writes log entries to the log file while the run flag is set.
    */
   void log();
+
+  /**
+   * Determines if a message can be delivered based on the acknowledgments received from other nodes.
+   * @param origin_id The ID of the origin node of the message.
+   * @param seq The sequence number of the message.
+   * @return true if the message can be delivered, false otherwise.
+   */
+  bool can_deliver(proc_id_t origin_id, msg_seq_t seq);
   
 private:
   msg_seq_t m_seq = 0;
