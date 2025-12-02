@@ -67,10 +67,6 @@ public:
 
 private:
   /**
-   * Message sending loop that continuously tries to enqueue messages to the specified destination address while the run flag is set.
-   */
-  void enqueue();
-  /**
    * Message sending loop that continuously sends messages to the specified destination address while the run flag is set.
    */
   void send();

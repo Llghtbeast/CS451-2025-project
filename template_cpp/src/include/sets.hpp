@@ -10,6 +10,7 @@
 #include <iostream>
 
 #include "globals.hpp"
+#include "deque.hpp"
 
 // Generic comparator for tuples
 struct TupleFirstElementComparator {
@@ -37,11 +38,14 @@ public:
   typename std::set<T, Compare>::iterator insert(const T& value);
   void erase(const std::vector<T>& values);
   void erase(const T& value);
+  // Method for perfect link -> complete set to maximum size (if possible) with elements from queue
+  const std::vector<T> complete(const ConcurrentDeque<T>& queue);
   
   // Lookup
   typename std::set<T, Compare>::iterator find(const T &value);
   bool contains(const T &value);
   std::vector<T> snapshot() const;
+
 
 private:
   size_t maxSize_;

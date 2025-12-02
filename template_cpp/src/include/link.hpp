@@ -18,6 +18,7 @@
 #include "message.hpp"
 #include "logger.hpp"
 #include "sets.hpp"
+#include "deque.hpp"
 
 /**
  * Derived class representing a sender endpoint of a communication link.
@@ -73,19 +74,11 @@ public:
 */
   void receiveAck(std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> acked_messages);
 
-  void allMessagesEnqueued();
-
-  void finished();
-  
 private:
   msg_seq_t link_seq = 0;
 
-  ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>, TupleFirstElementComparator> messageQueue;
-    
-  std::mutex finished_mutex;
-  std::condition_variable finished_cv;
-  bool all_msg_enqueued = false;
-  bool all_msg_delivered = false;
+  ConcurrentDeque<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> message_queue;
+  ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>, TupleFirstElementComparator> pending_msgs;
 };
 
 /**
@@ -127,10 +120,6 @@ public:
   void enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq);
   void send();
   std::vector<bool> receive(Message mes);
-
-  // Functions for measuring performance of solution
-  void allMessagesEnqueued();
-  void finished();
 
 private:
   SenderPort sendPort;

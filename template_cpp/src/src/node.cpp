@@ -47,6 +47,8 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
       next_expected_msg.try_emplace(n.id, 1);
       acked_by.try_emplace(n.id);
     }
+
+    // Add this node's id to the map too (it will also broadcast)
   }
 
 void Node::start()
@@ -73,6 +75,20 @@ void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
     // Increment message sequence number
     m_seq++;
     seq = m_seq;
+  }
+
+  // Enqueue message on all perfect links
+  for (auto &pair: links) {
+    // std::cout << "enqueuing message to " << pair.first << ": (" << origin_id << ", "<< seq << ")" << std::endl;
+    pair.second->enqueueMessage(origin_id, seq);
+  }
+  
+  // If this node is sender, log message
+  if (origin_id == id) {
+    // Log broadcast, add to pending messages and acked_by structures
+    logger->logBroadcast(m_seq);
+    pending_messages[origin_id].insert(seq);
+    acked_by[origin_id].add_to_mapped_set(seq, origin_id);
   }
 }
 
@@ -107,23 +123,6 @@ void Node::terminate()
 }
 
 // Private methods:
-
-void Node::enqueue()
-{
-  // Enqueue message on all perfect links
-  for (auto &pair: links) {
-    // std::cout << "enqueuing message to " << pair.first << ": (" << origin_id << ", "<< seq << ")" << std::endl;
-    pair.second->enqueueMessage(origin_id, seq);
-  }
-  
-  // If this node is sender, log message
-  if (origin_id == id) {
-    // Log broadcast, add to pending messages and acked_by structures
-    logger->logBroadcast(m_seq);
-    pending_messages[origin_id].insert(seq);
-    acked_by[origin_id].add_to_mapped_set(seq, origin_id);
-  }
-}
 
 void Node::send()
 {

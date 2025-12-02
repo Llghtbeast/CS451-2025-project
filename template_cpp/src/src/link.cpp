@@ -5,23 +5,28 @@ Port::Port(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
   : socket(socket), source_addr(source_addr), dest_addr(dest_addr) {}
 
 SenderPort::SenderPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Port(socket, source_addr, dest_addr), messageQueue(Message::max_msgs * window_size * MAX_QUEUE_SIZE)
+  : Port(socket, source_addr, dest_addr), message_queue(), pending_msgs()
 {}
 
 void SenderPort::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
 {
-  std::cout << "Message queue size: " << messageQueue.size() << std::endl;
+  // std::cout << "Message queue size: " << message_queue.size() << std::endl;
+  
+  // Create message
   link_seq++;
   std::tuple<msg_seq_t, proc_id_t, msg_seq_t> messageTuple = std::make_tuple(link_seq, origin_id, m_seq);
-  messageQueue.insert(messageTuple); 
+  
+  // Append message to end of message queue
+  message_queue.push_back(messageTuple); 
 }
 
 void SenderPort::send()
 {
-  if (messageQueue.empty()) return; // No messages to send
+  // No messages to send
+  if (pending_msgs.empty() && message_queue.empty()) return;
 
-  // take a snapshot of the current message queue to iterate over
-  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> setSnapshot = messageQueue.snapshot();
+  // Complete pending_msgs set with messages from message_queue and get snapshot of new pending_msgs set
+  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> setSnapshot = pending_msgs.complete(message_queue);
   auto it = setSnapshot.begin();
   
   for (size_t i = 0; i < window_size; i++) {
@@ -59,27 +64,7 @@ void SenderPort::send()
 void SenderPort::receiveAck(std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> acked_messages)
 {
   // Remove messages acknowledged by receiver
-  messageQueue.erase(acked_messages);
-
-  all_msg_delivered = messageQueue.empty();
-  // Notify finished condition variable to maybe signal completion to main thread
-  finished_cv.notify_one();
-}
-
-void SenderPort::allMessagesEnqueued() {
-  std::lock_guard<std::mutex> lock(finished_mutex);
-  all_msg_enqueued = true;
-}
-
-void SenderPort::finished() {
-  std::unique_lock<std::mutex> lock(finished_mutex);
-  finished_cv.wait(lock, [&]() {
-    return all_msg_enqueued && all_msg_delivered;
-  });
-
-  // Unlock and return to signal main thread of completion 
-  lock.unlock();
-  return;
+  pending_msgs.erase(acked_messages);
 }
 
 ReceiverPort::ReceiverPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
@@ -141,15 +126,5 @@ std::vector<bool> PerfectLink::receive(Message mes)
   else {
     throw std::runtime_error("Unknown message type received.");
   }
-}
-
-void PerfectLink::allMessagesEnqueued()
-{
-  sendPort.allMessagesEnqueued();
-}
-
-void PerfectLink::finished()
-{
-  sendPort.finished();
 }
 

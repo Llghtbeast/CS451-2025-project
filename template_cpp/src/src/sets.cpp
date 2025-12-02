@@ -58,6 +58,23 @@ void ConcurrentSet<T, Compare>::erase(const T &value)
 }
 
 template <typename T, typename Compare>
+std::vector<T> ConcurrentSet<T, Compare>::complete(const ConcurrentDeque<T>& queue)
+{
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  // get size of set
+  size_t set_size = set_.size();
+
+  for (T& value: queue.pop_k_front(maxSize_ - set_size))
+  {
+    set_.insert(set_.end(), value); 
+  }
+  
+  // Return snapshot of the concurrent set
+  return std::vector<T>(set_.begin(), set_.end());
+}
+
+template <typename T, typename Compare>
 void ConcurrentSet<T, Compare>::erase(const std::vector<T> &values)
 {
   // Lock the set while modifying it
@@ -92,8 +109,8 @@ bool ConcurrentSet<T, Compare>::contains(const T &value)
 template <typename T, typename Compare>
 std::vector<T> ConcurrentSet<T, Compare>::snapshot() const
 {
-    std::lock_guard<std::mutex> g(mutex_);
-    return std::vector<T>(set_.begin(), set_.end());
+  std::lock_guard<std::mutex> g(mutex_);
+  return std::vector<T>(set_.begin(), set_.end());
 }
 // ===================== ConcurrentSet end ===================== //
 
