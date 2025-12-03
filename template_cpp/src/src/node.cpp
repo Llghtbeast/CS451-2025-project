@@ -43,7 +43,7 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
       }
 
       // Initialize delivered messages set for each node
-      pending_messages.try_emplace(n.id);
+      pending_messages.try_emplace(n.id, false); // initialize unbounded concurrent message set
       next_expected_msg.try_emplace(n.id, 1);
       acked_by.try_emplace(n.id);
     }
@@ -68,7 +68,7 @@ void Node::start()
 
 void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
 {
-  std::cout << "Broadcasting" << std::endl;
+  // std::cout << "Broadcasting" << std::endl;
   // Check if broadcasting node is this node
   if (seq == 0) assert(origin_id == id);
   if (origin_id == id) {
@@ -128,7 +128,7 @@ void Node::send()
 {
   while (runFlag.load())
   {
-    std::cout << "Sending messages" << std::endl;
+    // std::cout << "Sending messages" << std::endl;
     // Try sending messages from all sender links
     for (auto &pair: links) {
       // Send messages enqueued on each sender link
@@ -147,7 +147,7 @@ void Node::listen()
   while (runFlag.load())
   {
     // Prepare buffer to receive message
-    std::cout << "Listening for message" << std::endl;
+    // std::cout << "Listening for message" << std::endl;
     std::vector<char> buffer(Message::max_size);
     sockaddr_in sender_addr;
     socklen_t addr_len = sizeof(sender_addr);
@@ -234,7 +234,7 @@ void Node::log() {
   while (runFlag.load())
   {
     // Periodically write log entries to file
-    std::cout << "Logging" << std::endl;
+    // std::cout << "Logging" << std::endl;
     logger->write();
     std::this_thread::sleep_for(std::chrono::milliseconds(LOG_TIMEOUT));
   }

@@ -2,10 +2,19 @@
 
 // ===================== ConcurrentSet start ===================== //
 template <typename T, typename Compare>
-ConcurrentSet<T, Compare>::ConcurrentSet(): maxSize_(MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_QUEUE_SIZE) {}
+ConcurrentSet<T, Compare>::ConcurrentSet(): bounded_(false), maxSize_(0) {}
 
 template <typename T, typename Compare>
-ConcurrentSet<T, Compare>::ConcurrentSet(size_t maxSize): maxSize_(maxSize), set_({}) {}
+ConcurrentSet<T, Compare>::ConcurrentSet(bool bounded): bounded_(bounded), set_({}) 
+{
+  // initialize maxSize to default if set is bounded
+  if (bounded) {
+    maxSize_ = MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_QUEUE_SIZE;
+  }
+  else {
+    maxSize_ = 0;
+  }
+}
 
 // Capacity methods
 template <typename T, typename Compare>
@@ -26,12 +35,9 @@ std::size_t ConcurrentSet<T, Compare>::size() const
 template <typename T, typename Compare>
 typename std::set<T, Compare>::iterator ConcurrentSet<T, Compare>::insert(const T &value)
 {
+  // assert that this method is only used when the concurrent set is NOT bounded
+  assert(!bounded_);
   std::lock_guard<std::mutex> lock(mutex_);
-  // Wait until there is space in the set
-  // std::unique_lock<std::mutex> lock(mutex_);
-  // cv_.wait(lock, [&]() {
-  //   return set_.size() < maxSize_;
-  // });
   
   // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
   auto result = set_.insert(set_.end(), value); 
@@ -58,23 +64,6 @@ void ConcurrentSet<T, Compare>::erase(const T &value)
 }
 
 template <typename T, typename Compare>
-std::vector<T> ConcurrentSet<T, Compare>::complete(const ConcurrentDeque<T>& queue)
-{
-  std::lock_guard<std::mutex> lock(mutex_);
-
-  // get size of set
-  size_t set_size = set_.size();
-
-  for (T& value: queue.pop_k_front(maxSize_ - set_size))
-  {
-    set_.insert(set_.end(), value); 
-  }
-  
-  // Return snapshot of the concurrent set
-  return std::vector<T>(set_.begin(), set_.end());
-}
-
-template <typename T, typename Compare>
 void ConcurrentSet<T, Compare>::erase(const std::vector<T> &values)
 {
   // Lock the set while modifying it
@@ -89,6 +78,26 @@ void ConcurrentSet<T, Compare>::erase(const std::vector<T> &values)
   // Notify the waiting enqueuer thread that space is available in the set
   // lock.unlock();
   // cv_.notify_one();
+}
+
+template <typename T, typename Compare>
+std::vector<T> ConcurrentSet<T, Compare>::complete(ConcurrentDeque<T>& queue)
+{
+  // assert that this method is only used when the concurrent set is bounded
+  assert(bounded_);
+  std::lock_guard<std::mutex> lock(mutex_);
+
+  // get size of set
+  size_t set_size = set_.size();
+
+  // insert k first elements of concurrent queue into set_
+  for (T& value: queue.pop_k_front(maxSize_ - set_size))
+  {
+    set_.insert(set_.end(), value); 
+  }
+  
+  // Return snapshot of the concurrent set
+  return std::vector<T>(set_.begin(), set_.end());
 }
 
 // Lookup

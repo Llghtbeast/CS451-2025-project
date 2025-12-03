@@ -5,13 +5,11 @@ Port::Port(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
   : socket(socket), source_addr(source_addr), dest_addr(dest_addr) {}
 
 SenderPort::SenderPort(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
-  : Port(socket, source_addr, dest_addr), message_queue(), pending_msgs()
+  : Port(socket, source_addr, dest_addr), message_queue(), pending_msgs(true)
 {}
 
 void SenderPort::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
-{
-  // std::cout << "Message queue size: " << message_queue.size() << std::endl;
-  
+{  
   // Create message
   link_seq++;
   std::tuple<msg_seq_t, proc_id_t, msg_seq_t> messageTuple = std::make_tuple(link_seq, origin_id, m_seq);
@@ -28,6 +26,8 @@ void SenderPort::send()
   // Complete pending_msgs set with messages from message_queue and get snapshot of new pending_msgs set
   std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> setSnapshot = pending_msgs.complete(message_queue);
   auto it = setSnapshot.begin();
+
+  // std::cout << "message_queue size: " << message_queue.size() << ", pending_messages size: " << pending_msgs.size() << std::endl;
   
   for (size_t i = 0; i < window_size; i++) {
     std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msgs;

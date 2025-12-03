@@ -1,12 +1,6 @@
 #include "deque.hpp"
 
 // ===================== ConcurrentDeque start ===================== //
-template <typename T>
-ConcurrentDeque<T>::ConcurrentDeque(): maxSize_(MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_QUEUE_SIZE) {}
-
-template <typename T>
-ConcurrentDeque<T>::ConcurrentDeque(size_t maxSize): maxSize_(maxSize), deque_({}) {}
-
 // Capacity methods
 template <typename T>
 bool ConcurrentDeque<T>::empty() const
@@ -52,9 +46,6 @@ T ConcurrentDeque<T>::pop_front()
   //   return !deque_.empty();
   // });
   
-  if (deque_.empty()) {
-    throw std::runtime_error("pop_front() called on empty deque");
-  }
   
   T value = deque_.front();
   deque_.pop_front();
@@ -84,9 +75,9 @@ std::vector<T> ConcurrentDeque<T>::pop_k_front(size_t k)
   );
 
   // Erase the moved elements from the beginning of the deque.
-  source_deque.erase(source_deque.begin(), end);
+  deque_.erase(deque_.begin(), end);
   
-  return result_vector;
+  return output;
 }
 
 template <typename T>
@@ -104,9 +95,6 @@ template <typename T>
 T ConcurrentDeque<T>::front() const
 {
   std::lock_guard<std::mutex> g(mutex_);
-  if (deque_.empty()) {
-    throw std::runtime_error("front() called on empty deque");
-  }
   return deque_.front();
 }
 
@@ -114,9 +102,6 @@ template <typename T>
 T ConcurrentDeque<T>::back() const
 {
   std::lock_guard<std::mutex> g(mutex_);
-  if (deque_.empty()) {
-    throw std::runtime_error("back() called on empty deque");
-  }
   return deque_.back();
 }
 
@@ -129,4 +114,5 @@ std::vector<T> ConcurrentDeque<T>::snapshot() const
 // ===================== ConcurrentDeque end ===================== //
 
 // Explicit template instantiation
+template class ConcurrentDeque<msg_seq_t>;
 template class ConcurrentDeque<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>;

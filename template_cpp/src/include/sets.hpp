@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include <condition_variable>
 #include <iostream>
+#include <cassert>
 
 #include "globals.hpp"
 #include "deque.hpp"
@@ -27,7 +28,7 @@ public:
   using value_type = T;
 
   ConcurrentSet();
-  ConcurrentSet(size_t maxSize);
+  ConcurrentSet(bool bounded);
   ~ConcurrentSet() = default;
 
   // Capacity methods
@@ -35,19 +36,23 @@ public:
   std::size_t size() const;
 
   // Modifiers
+  /**
+   * This method allows for unbounded population of the concurrent set.
+   * It should never be used on the same concurrent set where the complete method has been used.
+   */
   typename std::set<T, Compare>::iterator insert(const T& value);
   void erase(const std::vector<T>& values);
   void erase(const T& value);
   // Method for perfect link -> complete set to maximum size (if possible) with elements from queue
-  const std::vector<T> complete(const ConcurrentDeque<T>& queue);
+  std::vector<T> complete(ConcurrentDeque<T>& queue);
   
   // Lookup
   typename std::set<T, Compare>::iterator find(const T &value);
   bool contains(const T &value);
   std::vector<T> snapshot() const;
 
-
 private:
+  bool bounded_;
   size_t maxSize_;
   std::set<T, Compare> set_;
   mutable std::mutex mutex_;

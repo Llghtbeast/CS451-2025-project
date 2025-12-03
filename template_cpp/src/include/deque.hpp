@@ -14,8 +14,7 @@ class ConcurrentDeque {
 public:
   using value_type = T;
 
-  ConcurrentDeque();
-  ConcurrentDeque(size_t maxSize);
+  ConcurrentDeque() = default;
   ~ConcurrentDeque() = default;
 
   // Capacity methods
@@ -34,7 +33,6 @@ public:
   std::vector<T> snapshot() const;
 
 private:
-  size_t maxSize_;
   std::deque<T> deque_;
   mutable std::mutex mutex_;
   std::condition_variable cv_;
