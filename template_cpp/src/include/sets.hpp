@@ -12,6 +12,7 @@
 
 #include "globals.hpp"
 #include "deque.hpp"
+#include "message.hpp"
 
 // Generic comparator for tuples
 struct TupleFirstElementComparator {

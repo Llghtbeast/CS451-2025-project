@@ -9,7 +9,8 @@ void PerfectLink::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
 {
   // Create message
   link_seq++;
-  std::tuple<msg_seq_t, proc_id_t, msg_seq_t> messageTuple = std::make_tuple(link_seq, origin_id, m_seq);
+  Message message = Message(m_seq, origin_id);
+  std::pair<pkt_seq_t, Message> messageTuple = std::make_pair(link_seq, message);
   
   // Append message to end of message queue
   message_queue.push_back(messageTuple); 
@@ -21,13 +22,13 @@ void PerfectLink::send()
   if (pending_msgs.empty() && message_queue.empty()) return;
 
   // Complete pending_msgs set with messages from message_queue and get snapshot of new pending_msgs set
-  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> setSnapshot = pending_msgs.complete(message_queue);
+  std::vector<std::pair<pkt_seq_t, Message>> setSnapshot = pending_msgs.complete(message_queue);
   auto it = setSnapshot.begin();
 
   // std::cout << "message_queue size: " << message_queue.size() << ", pending_messages size: " << pending_msgs.size() << std::endl;
   
   for (size_t i = 0; i < window_size; i++) {
-    std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msgs;
+    std::vector<std::pair<pkt_seq_t, Message>> msgs;
 
     for (size_t i = 0; i < Packet::max_msgs && it != setSnapshot.end(); i++, it++) {
       msgs.push_back(*it);
@@ -42,7 +43,7 @@ void PerfectLink::send()
     // Send packet to receiver
     if (sendto(socket, packet.serialize(), packet.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
       std::ostringstream os;
-      os << "Failed to send packet " << " from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
+      os << "Failed to send packet (errno: " << strerror(errno) << ")from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
       std::cout << os.str() << "\n";
       continue;
       // throw std::runtime_error(os.str());

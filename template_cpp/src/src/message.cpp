@@ -1,8 +1,49 @@
 #include "message.hpp"
 
+// =================== Message implementation =================== 
+Message::Message(msg_seq_t seq, proc_id_t origin): seq(seq), origin(origin) {}
+
+bool Message::operator==(const Message& other) const {
+    return (seq == other.seq) && (origin == other.origin);
+}
+
+void Message::displayMessage(const Message& msg)
+{
+  std::cout << "Message: ";
+  std::cout << msg.seq << " ";
+  std::cout << msg.origin << "\n";
+}
+
+void Message::serializeTo(std::vector<char>& buffer) const 
+{
+  msg_seq_t seq_network = convertToNetwork(seq);
+  proc_id_t orig_network = convertToNetwork(origin);
+  
+  const char* p1 = reinterpret_cast<const char*>(&seq_network);
+  buffer.insert(buffer.end(), p1, p1 + sizeof(seq_network));
+  
+  const char* p2 = reinterpret_cast<const char*>(&orig_network);
+  buffer.insert(buffer.end(), p2, p2 + sizeof(orig_network));
+}
+
+Message Message::deserialize(const char *buffer, size_t& offset)
+{
+  msg_seq_t seq_network;
+  proc_id_t orig_network;
+  
+  std::memcpy(&seq_network, buffer + offset, sizeof(seq_network));
+  offset += sizeof(msg_seq_t);
+  
+  std::memcpy(&orig_network, buffer + offset, sizeof(orig_network));
+  offset += sizeof(proc_id_t);
+  
+  return Message(convertFromNetwork(seq_network), convertFromNetwork(orig_network));
+}
+
+// =================== Packet implementation =================== 
 // Constructor for MES
 Packet::Packet(MessageType type, uint8_t nb_m, 
-                 std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads)
+                 std::vector<std::pair<pkt_seq_t, Message>> payloads)
     : m_type(type), origin_id(0), nb_mes(nb_m), payload(std::move(payloads)) 
 {
   assert(nb_m == payload.size());
@@ -18,7 +59,7 @@ Packet::Packet(MessageType type, uint8_t nb_m,
 MessageType Packet::getType() const  { return m_type; }
 uint8_t Packet::getNbMes() const     { return nb_mes; }
 
-const std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>& Packet::getPayloads() const 
+const std::vector<std::pair<pkt_seq_t, Message>>& Packet::getPayloads() const 
 {
   return payload;
   // assert(m_type == MessageType::MES);
@@ -29,7 +70,7 @@ const std::vector<msg_seq_t> Packet::getSeqs() const
 { 
   std::vector<msg_seq_t> seqs;
   seqs.reserve(nb_mes);
-  for (const auto& [seq, _, __] : payload) {
+  for (const auto& [seq, _] : payload) {
     seqs.push_back(seq);
   }
   return seqs; 
@@ -58,10 +99,10 @@ Packet Packet::toAck()
 
 size_t Packet::serializedSize() const 
 {
-  size_t size = 1 + 1;
+  size_t size = sizeof(m_type) + sizeof(nb_mes);
 
   // if (m_type == MES) {
-  size += nb_mes * (sizeof(msg_seq_t) + sizeof(proc_id_t) + sizeof(msg_seq_t));
+  size += nb_mes * (sizeof(pkt_seq_t) + Message::serializedSize);
   // } else if (m_type == ACK) {
   //   size += nb_mes * sizeof(msg_seq_t);
   // }
@@ -71,38 +112,32 @@ size_t Packet::serializedSize() const
 
 void Packet::displayPacket(const Packet& message)
 {
-  // std::cout << "Packet Type: " << static_cast<int>(message.getType()) << "" << std::endl;
-  // std::cout << "Number of Packets: " << static_cast<int>(message.getNbMes()) << "" << std::endl;
-  // std::cout << "Payload:" << std::endl;
-  // if (message.getType() == MES) {
-  for (const auto& [seq, id, payload] : message.getPayloads()) {
-    // std::cout << "    ";
-    // std::cout << seq<< " ";
-    // std::cout << id << " ";
-    // std::cout << payload << "" << std::endl;
-    }
-  // } else if (message.getType() == ACK) {
-  //   for (msg_seq_t seq : message.getSeqs()) {
-  //     // std::cout << seq << " ";
-  //   }
-  // }
-  // std::cout << "" << std::endl;
+  std::cout << "Packet Type: " << static_cast<int>(message.getType()) << "" << std::endl;
+  std::cout << "Number of Packets: " << static_cast<int>(message.getNbMes()) << "" << std::endl;
+  std::cout << "Payload:\n";
+  for (const auto& [seq, msg] : message.getPayloads()) {
+    std::cout << "    ";
+    std::cout << seq<< " ";
+    Message::displayMessage(msg);
+  }
+  std::cout << "" << std::endl;
 }
 
 void Packet::displaySerialized(const char* serialized)
 {
   size_t len = Packet::deserialize(serialized).serializedSize();
-  // std::cout << "Serialized message size: " << len << std::endl;
-  // std::cout << "Serialized message (hex): ";
+  std::cout << "Serialized message size: " << len << std::endl;
+  std::cout << "Serialized message (hex): ";
   for (size_t i = 0; i < len; ++i) {
     unsigned char c = static_cast<unsigned char>(serialized[i]);
-    // std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c) << ' ';
+    std::cout << std::hex << std::setw(2) << std::setfill('0') << static_cast<int>(c) << ' ';
   }
-  // std::cout << std::dec << std::setfill(' ') << "" << std::endl; // reset formatting
+  std::cout << std::dec << std::setfill(' ') << "" << std::endl; // reset formatting
 }
 
 const char* Packet::serialize() const {
   serialized_buffer.clear();
+  serialized_buffer.reserve(serializedSize());
   
   // Write the message type (1 byte)
   serialized_buffer.push_back(static_cast<char>(m_type));
@@ -114,28 +149,16 @@ const char* Packet::serialize() const {
   // std::visit([this](const auto& data) {
   //   using T = std::decay_t<decltype(data)>;
     
-  //   if constexpr (std::is_same_v<T, std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>>) {
+  //   if constexpr (std::is_same_v<T, std::vector<std::pair<pkt_seq_t, Message>>>) {
   //     // MES type
-  for (const auto& [seq, orig, payload_data] : payload) {
-    // Convert each field to network byte order before serializing
-    
+  for (const auto& [pkt, msg] : payload) {
     // Sequence number
-    msg_seq_t seq_network = convertToNetwork(seq);
-    serialized_buffer.insert(serialized_buffer.end(),
-                            reinterpret_cast<const char*>(&seq_network),
-                            reinterpret_cast<const char*>(&seq_network) + sizeof(seq_network));
+    msg_seq_t pkt_network = convertToNetwork(pkt);
+    const char* p = reinterpret_cast<const char*>(&pkt_network);
+    serialized_buffer.insert(serialized_buffer.end(), p, p + sizeof(pkt_network));
     
-    // Origin ID
-    proc_id_t orig_network = convertToNetwork(orig);
-    serialized_buffer.insert(serialized_buffer.end(),
-                            reinterpret_cast<const char*>(&orig_network),
-                            reinterpret_cast<const char*>(&orig_network) + sizeof(orig_network));
-    
-    // Payload
-    msg_seq_t payload_network = convertToNetwork(payload_data);
-    serialized_buffer.insert(serialized_buffer.end(),
-                            reinterpret_cast<const char*>(&payload_network),
-                            reinterpret_cast<const char*>(&payload_network) + sizeof(payload_network));
+    // serialize message
+    msg.serializeTo(serialized_buffer);
   }
   //   } else {
   //     // ACK type
@@ -161,28 +184,21 @@ Packet Packet::deserialize(const char* buffer) {
   uint8_t nb = static_cast<uint8_t>(buffer[offset++]);
   
   // if (type == MessageType::MES) {
-  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads;
+  std::vector<std::pair<pkt_seq_t, Message>> payloads;
   for (uint8_t i = 0; i < nb; ++i) {
-    msg_seq_t seq, payload_data;
+    pkt_seq_t pkt;
+    msg_seq_t seq;
     proc_id_t orig;
     
     // Read and convert from network byte order
-    msg_seq_t seq_network;
-    std::memcpy(&seq_network, buffer + offset, sizeof(seq_network));
-    seq = convertFromNetwork(seq_network);
-    offset += sizeof(seq);
-    
-    proc_id_t orig_network;
-    std::memcpy(&orig_network, buffer + offset, sizeof(orig_network));
-    orig = convertFromNetwork(orig_network);
-    offset += sizeof(orig);
-    
-    msg_seq_t payload_network;
-    std::memcpy(&payload_network, buffer + offset, sizeof(payload_network));
-    payload_data = convertFromNetwork(payload_network);
-    offset += sizeof(payload_data);
-    
-    payloads.emplace_back(seq, orig, payload_data);
+    pkt_seq_t pkt_network;
+    std::memcpy(&pkt_network, buffer + offset, sizeof(pkt_network));
+    pkt = convertFromNetwork(pkt_network);
+    offset += sizeof(pkt);
+
+    Message msg = Message::deserialize(buffer, offset);
+
+    payloads.emplace_back(pkt, msg);
   }
 
   return Packet(type, nb, std::move(payloads));

@@ -125,7 +125,7 @@ std::vector<T> ConcurrentSet<T, Compare>::snapshot() const
 
 // Explicit template instantiation for msg_seq_t
 template class ConcurrentSet<msg_seq_t>;
-template class ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>, TupleFirstElementComparator>;
+template class ConcurrentSet<std::pair<pkt_seq_t, Message>, TupleFirstElementComparator>;
 
 
 // ===================== SlidingSet start ===================== //

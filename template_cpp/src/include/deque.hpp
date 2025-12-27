@@ -7,6 +7,7 @@
 #include <condition_variable>
 
 #include "globals.hpp"
+#include "message.hpp"
 
 // Concurrent deque
 template <typename T>

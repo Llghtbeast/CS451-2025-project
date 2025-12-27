@@ -168,60 +168,60 @@ void Node::listen()
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     // std::cout << "message received from " << sender_ip_and_port << "" << std::endl;
 
-    Packet msg = Packet::deserialize(buffer.data());
-    Packet::displayPacket(msg);
+    Packet pkt = Packet::deserialize(buffer.data());
+    Packet::displayPacket(pkt);
   
     // Process message through perfect link -> extract new received messages
-    std::vector<bool> received_msgs = links[sender_ip_and_port]->receive(msg);
-    std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> msg_payload = msg.getPayloads();
+    std::vector<bool> received_msgs = links[sender_ip_and_port]->receive(pkt);
+    std::vector<std::pair<pkt_seq_t, Message>> msg_payload = pkt.getPayloads();
 
     // If received_msgs is empty, it means an ACK was received, so skip delivery processing
     if (received_msgs.empty()) continue;
 
     // Deliver message
-    for (size_t i = 0; i < msg.getNbMes(); i++) {
+    for (size_t i = 0; i < pkt.getNbMes(); i++) {
       // If message was already received, SKIP
       if (!received_msgs[i]) continue;
       
-      const auto& [_, origin_id, seq] = msg_payload[i];
+      const auto& [_, msg] = msg_payload[i];
       
       // If message has already been delivered, SKIP
-      if (seq < next_expected_msg[origin_id]) continue;
+      if (msg.seq < next_expected_msg[msg.origin]) continue;
       
       // Update acked_by structure
-      acked_by[origin_id].add_to_mapped_set(seq, others_id[sender_ip_and_port]); // Ack by sender of message
+      acked_by[msg.origin].add_to_mapped_set(msg.seq, others_id[sender_ip_and_port]); // Ack by sender of message
       
       // Check if message is already in pending set
-      if (!pending_messages[origin_id].contains(seq)) {;
-        // std::cout << "Adding (" << origin_id << ", " << seq << ") to pending list" << std::endl;
+      if (!pending_messages[msg.origin].contains(msg.seq)) {;
+        // std::cout << "Adding (" << msg.origin << ", " << msg.seq << ") to pending list" << std::endl;
         // Add message to pending messages and acked_by structures
-        pending_messages[origin_id].insert(seq);
-        acked_by[origin_id].add_to_mapped_set(seq, id); // Ack by self
-        broadcast(origin_id, seq);
+        pending_messages[msg.origin].insert(msg.seq);
+        acked_by[msg.origin].add_to_mapped_set(msg.seq, id); // Ack by self
+        broadcast(msg.origin, msg.seq);
       }
 
       // Print received message and all data structures
-      // std::cout << "\n=== Packet State ===" << std::endl;
-      // std::cout << "Received message (" << origin_id << ", " << seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
+      std::cout << "\n=== Packet State ===" << std::endl;
+      std::cout << "Received message (" << msg.origin << ", " << msg.seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
       
-      // if (can_deliver(origin_id, seq)) std::cout << "Delivering message: (" << origin_id << ", " << seq << ")" << std::endl;
-      // std::cout << "==================\n" << std::endl;
+      if (can_deliver(msg.origin, msg.seq)) std::cout << "Delivering message: (" << msg.origin << ", " << msg.seq << ")" << std::endl;
+      std::cout << "==================\n" << std::endl;
 
       // Try delivering this message and subsequent messages
-      msg_seq_t msg_to_deliver = seq;
+      msg_seq_t msg_to_deliver = msg.seq;
       while (true) {
         // If a message cannot be delivered, exit delivering loop
-        if (!can_deliver(origin_id, msg_to_deliver)) break;
+        if (!can_deliver(msg.origin, msg_to_deliver)) break;
 
         // Deliver the message and try on next message
         // Log delivery
-        logger->logDelivery(origin_id, msg_to_deliver);
+        logger->logDelivery(msg.origin, msg_to_deliver);
         // Remove from pending messages
-        pending_messages[origin_id].erase(msg_to_deliver);
-        acked_by[origin_id].erase(msg_to_deliver);
+        pending_messages[msg.origin].erase(msg_to_deliver);
+        acked_by[msg.origin].erase(msg_to_deliver);
 
         // Add to delivered messages
-        next_expected_msg[origin_id]++;
+        next_expected_msg[msg.origin]++;
 
         msg_to_deliver++;
       }

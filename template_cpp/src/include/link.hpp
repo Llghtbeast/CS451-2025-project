@@ -12,7 +12,7 @@
 #include <mutex>
 #include <errno.h>
 #include <memory>
-#include <tuple>
+#include <utility>
 
 #include "parser.hpp"
 #include "message.hpp"
@@ -62,8 +62,8 @@ private:
   // Sending
   msg_seq_t link_seq = 0;
   
-  ConcurrentDeque<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> message_queue;
-  ConcurrentSet<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>, TupleFirstElementComparator> pending_msgs;
+  ConcurrentDeque<std::pair<pkt_seq_t, Message>> message_queue;
+  ConcurrentSet<std::pair<pkt_seq_t, Message>, TupleFirstElementComparator> pending_msgs;
   
   // Reception
   SlidingSet<msg_seq_t> deliveredPackets;

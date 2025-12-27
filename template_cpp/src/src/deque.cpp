@@ -115,4 +115,4 @@ std::vector<T> ConcurrentDeque<T>::snapshot() const
 
 // Explicit template instantiation
 template class ConcurrentDeque<msg_seq_t>;
-template class ConcurrentDeque<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>;
+template class ConcurrentDeque<std::pair<pkt_seq_t, Message>>;

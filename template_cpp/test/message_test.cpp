@@ -11,21 +11,22 @@ static void testPacketSerialization() {
 
   proc_id_t origin_id = 123456789;
   uint8_t nb_mes = 8;
-  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payload = {{1, origin_id, 10},
-                                                                      {2, origin_id, 20},
-                                                                      {3, origin_id, 30},
-                                                                      {4, origin_id, 40},
-                                                                      {5, origin_id, 50},
-                                                                      {6, origin_id, 60},
-                                                                      {7, origin_id, 70},
-                                                                      {8, origin_id, 80} };
-
+  std::vector<std::pair<pkt_seq_t, Message>> payload = {{1, Message(10, origin_id)},
+                                                        {2, Message(20, origin_id)},
+                                                        {3, Message(30, origin_id)},
+                                                        {4, Message(40, origin_id)},
+                                                        {5, Message(50, origin_id)},
+                                                        {6, Message(60, origin_id)},
+                                                        {7, Message(70, origin_id)},
+                                                        {8, Message(80, origin_id)} };
   Packet msg(MES, nb_mes, payload);
+  Packet::displayPacket(msg);  
 
   const char* serialized = msg.serialize();
   Packet::displaySerialized(serialized);
   Packet deserialized_msg = Packet::deserialize(serialized);
-  
+
+  Packet::displayPacket(deserialized_msg);  
 
   IS_TRUE(deserialized_msg.getType() == MES);
   IS_TRUE(deserialized_msg.getNbMes() == nb_mes);
