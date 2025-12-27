@@ -123,7 +123,6 @@ int main(int argc, char **argv) {
   
     std::cout << "All messages enqueued.\n" << std::endl;
     
-    // node.allMessagesEnqueued(setupIpAddress(parser.hosts()[recv_id - 1]));
     // node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
     
     // auto stop_time = std::chrono::high_resolution_clock::now();

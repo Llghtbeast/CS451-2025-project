@@ -6,7 +6,7 @@
 static int test_failed = 0;
 #define IS_TRUE(x) do { if (!(x)) {std::cout << __FUNCTION__ << " failed on line " << __LINE__ << std::endl; test_failed = 1; } } while (0)
 
-static void testMessageSerialization() {
+static void testPacketSerialization() {
   // std::cout << "Running " << __FUNCTION__ << std::endl;
 
   proc_id_t origin_id = 123456789;
@@ -20,11 +20,11 @@ static void testMessageSerialization() {
                                                                       {7, origin_id, 70},
                                                                       {8, origin_id, 80} };
 
-  Message msg(MES, nb_mes, payload);
+  Packet msg(MES, nb_mes, payload);
 
   const char* serialized = msg.serialize();
-  Message::displaySerialized(serialized);
-  Message deserialized_msg = Message::deserialize(serialized);
+  Packet::displaySerialized(serialized);
+  Packet deserialized_msg = Packet::deserialize(serialized);
   
 
   IS_TRUE(deserialized_msg.getType() == MES);
@@ -33,6 +33,6 @@ static void testMessageSerialization() {
 }
 
 int main() {
-  testMessageSerialization();
+  testPacketSerialization();
   return test_failed ? 1 : 0;
 }

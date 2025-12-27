@@ -69,8 +69,7 @@ class FIFOURBValidator:
     
     def verify_validity(self):
         """URB Validity: If a correct process broadcasts m, then it eventually delivers m"""
-        print("\n" + "=" * 80)
-        print("Checking VALIDITY property...")
+        print("\nChecking VALIDITY property...")
         print("Property: If a correct process broadcasts m, then it eventually delivers m")
         violations = []
         
@@ -98,8 +97,7 @@ class FIFOURBValidator:
     
     def verify_no_duplication(self):
         """URB No Duplication: No message is delivered more than once"""
-        print("\n" + "=" * 80)
-        print("Checking NO DUPLICATION property...")
+        print("\nChecking NO DUPLICATION property...")
         print("Property: No message is delivered more than once")
         violations = []
         
@@ -128,8 +126,7 @@ class FIFOURBValidator:
     
     def verify_no_creation(self):
         """URB No Creation: If a process delivers m with sender s, then s previously broadcast m"""
-        print("\n" + "=" * 80)
-        print("Checking NO CREATION property...")
+        print("\nChecking NO CREATION property...")
         print("Property: If a process delivers m with sender s, then s previously broadcast m")
         violations = []
         
@@ -157,8 +154,7 @@ class FIFOURBValidator:
     
     def verify_uniform_agreement(self):
         """URB Uniform Agreement: If a process delivers m, then all correct processes eventually deliver m"""
-        print("\n" + "=" * 80)
-        print("Checking UNIFORM AGREEMENT property...")
+        print("\nChecking UNIFORM AGREEMENT property...")
         print("Property: If a process delivers m, then all correct processes eventually deliver m")
         violations = []
         
@@ -197,8 +193,7 @@ class FIFOURBValidator:
     
     def verify_fifo_order(self):
         """FIFO Order: Messages from the same sender are delivered in the order they were broadcast"""
-        print("\n" + "=" * 80)
-        print("Checking FIFO ORDER property...")
+        print("\nChecking FIFO ORDER property...")
         print("Property: Messages from the same sender are delivered in the order they were broadcast")
         violations = []
         
@@ -226,9 +221,6 @@ class FIFOURBValidator:
     
     def run_validation(self):
         """Run all validation checks"""
-        print("\n" + "=" * 80)
-        print("STARTING VALIDATION")
-        print("=" * 80)
         
         results = {
             "Validity": self.verify_validity(),
@@ -238,8 +230,7 @@ class FIFOURBValidator:
             "FIFO Order": self.verify_fifo_order()
         }
         
-        print("\n" + "=" * 80)
-        print("VALIDATION SUMMARY")
+        print("\nSUMMARY")
         print("=" * 80)
         for prop, passed in results.items():
             status = "PASS" if passed else "FAIL"
@@ -247,12 +238,6 @@ class FIFOURBValidator:
         
         all_passed = all(results.values())
         print("=" * 80)
-        if all_passed:
-            print("ALL CHECKS PASSED!")
-        else:
-            print("SOME CHECKS FAILED")
-        print("=" * 80)
-        
         return all_passed
 
 

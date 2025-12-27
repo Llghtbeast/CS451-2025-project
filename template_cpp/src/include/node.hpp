@@ -67,12 +67,12 @@ public:
 
 private:
   /**
-   * Message sending loop that continuously sends messages to the specified destination address while the run flag is set.
+   * Packet sending loop that continuously sends messages to the specified destination address while the run flag is set.
    */
   void send();
 
   /**
-   * Message listening loop that continuously listens for incoming messages and processes them while the run flag is set.
+   * Packet listening loop that continuously listens for incoming messages and processes them while the run flag is set.
    */
   void listen();
 

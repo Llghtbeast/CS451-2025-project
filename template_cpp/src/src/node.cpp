@@ -148,12 +148,12 @@ void Node::listen()
   {
     // Prepare buffer to receive message
     // std::cout << "Listening for message" << std::endl;
-    std::vector<char> buffer(Message::max_size);
+    std::vector<char> buffer(Packet::max_size);
     sockaddr_in sender_addr;
     socklen_t addr_len = sizeof(sender_addr);
   
     // Sleeps until message received.
-    ssize_t bytes_received = recvfrom(node_socket, buffer.data(), Message::max_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len);
+    ssize_t bytes_received = recvfrom(node_socket, buffer.data(), Packet::max_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len);
     if (bytes_received < 0) {
       std::cout << "recvfrom failed\n";
       continue;
@@ -168,8 +168,8 @@ void Node::listen()
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     // std::cout << "message received from " << sender_ip_and_port << "" << std::endl;
 
-    Message msg = Message::deserialize(buffer.data());
-    Message::displayMessage(msg);
+    Packet msg = Packet::deserialize(buffer.data());
+    Packet::displayPacket(msg);
   
     // Process message through perfect link -> extract new received messages
     std::vector<bool> received_msgs = links[sender_ip_and_port]->receive(msg);
@@ -201,7 +201,7 @@ void Node::listen()
       }
 
       // Print received message and all data structures
-      // std::cout << "\n=== Message State ===" << std::endl;
+      // std::cout << "\n=== Packet State ===" << std::endl;
       // std::cout << "Received message (" << origin_id << ", " << seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
       
       // if (can_deliver(origin_id, seq)) std::cout << "Delivering message: (" << origin_id << ", " << seq << ")" << std::endl;

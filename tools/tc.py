@@ -4,7 +4,7 @@ import os, atexit
 import textwrap
 
 class TC:
-    def __init__(self, losses, interface="lo", needSudo=True, sudoPassword="dcl"):
+    def __init__(self, losses, interface="lo", needSudo=True, sudoPassword="RexyEldino1"):
         self.losses = losses
         self.interface = interface
         self.needSudo = needSudo

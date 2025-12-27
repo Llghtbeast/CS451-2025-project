@@ -1,31 +1,31 @@
 #include "message.hpp"
 
 // Constructor for MES
-Message::Message(MessageType type, uint8_t nb_m, 
+Packet::Packet(MessageType type, uint8_t nb_m, 
                  std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads)
     : m_type(type), origin_id(0), nb_mes(nb_m), payload(std::move(payloads)) 
 {
   assert(nb_m == payload.size());
 }
 
-// Message::Message(MessageType type, uint8_t nb_m, std::vector<msg_seq_t> seqs)
+// Packet::Packet(MessageType type, uint8_t nb_m, std::vector<msg_seq_t> seqs)
 //     : m_type(type), nb_mes(nb_m), payload(std::move(seqs)) 
 // {
 //   assert(type == MessageType::ACK);
 //   assert(nb_m == seqs.size());
 // }
 
-MessageType Message::getType() const  { return m_type; }
-uint8_t Message::getNbMes() const     { return nb_mes; }
+MessageType Packet::getType() const  { return m_type; }
+uint8_t Packet::getNbMes() const     { return nb_mes; }
 
-const std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>& Message::getPayloads() const 
+const std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>& Packet::getPayloads() const 
 {
   return payload;
   // assert(m_type == MessageType::MES);
   // return std::get<0>(payload);
 }
 
-const std::vector<msg_seq_t> Message::getSeqs() const
+const std::vector<msg_seq_t> Packet::getSeqs() const
 { 
   std::vector<msg_seq_t> seqs;
   seqs.reserve(nb_mes);
@@ -40,7 +40,7 @@ const std::vector<msg_seq_t> Message::getSeqs() const
 /** 
  * Convert message to ACK type
  */
-Message Message::toAck()
+Packet Packet::toAck()
 {
   // // Extract link sequence numbers from MES payload
   // auto payloads = std::get<0>(payload);
@@ -52,11 +52,11 @@ Message Message::toAck()
   // }
   
   // Construct ACK message
-  Message new_msg = Message(ACK, nb_mes, payload);
+  Packet new_msg = Packet(ACK, nb_mes, payload);
   return new_msg;
 }
 
-size_t Message::serializedSize() const 
+size_t Packet::serializedSize() const 
 {
   size_t size = 1 + 1;
 
@@ -69,10 +69,10 @@ size_t Message::serializedSize() const
   return size;
 }
 
-void Message::displayMessage(const Message& message)
+void Packet::displayPacket(const Packet& message)
 {
-  // std::cout << "Message Type: " << static_cast<int>(message.getType()) << "" << std::endl;
-  // std::cout << "Number of Messages: " << static_cast<int>(message.getNbMes()) << "" << std::endl;
+  // std::cout << "Packet Type: " << static_cast<int>(message.getType()) << "" << std::endl;
+  // std::cout << "Number of Packets: " << static_cast<int>(message.getNbMes()) << "" << std::endl;
   // std::cout << "Payload:" << std::endl;
   // if (message.getType() == MES) {
   for (const auto& [seq, id, payload] : message.getPayloads()) {
@@ -89,9 +89,9 @@ void Message::displayMessage(const Message& message)
   // std::cout << "" << std::endl;
 }
 
-void Message::displaySerialized(const char* serialized)
+void Packet::displaySerialized(const char* serialized)
 {
-  size_t len = Message::deserialize(serialized).serializedSize();
+  size_t len = Packet::deserialize(serialized).serializedSize();
   // std::cout << "Serialized message size: " << len << std::endl;
   // std::cout << "Serialized message (hex): ";
   for (size_t i = 0; i < len; ++i) {
@@ -101,7 +101,7 @@ void Message::displaySerialized(const char* serialized)
   // std::cout << std::dec << std::setfill(' ') << "" << std::endl; // reset formatting
 }
 
-const char* Message::serialize() const {
+const char* Packet::serialize() const {
   serialized_buffer.clear();
   
   // Write the message type (1 byte)
@@ -151,7 +151,7 @@ const char* Message::serialize() const {
   return serialized_buffer.data();
 }
 
-Message Message::deserialize(const char* buffer) {
+Packet Packet::deserialize(const char* buffer) {
   size_t offset = 0;
   
   // STEP 1: Read type (1 byte)
@@ -185,7 +185,7 @@ Message Message::deserialize(const char* buffer) {
     payloads.emplace_back(seq, orig, payload_data);
   }
 
-  return Message(type, nb, std::move(payloads));
+  return Packet(type, nb, std::move(payloads));
   // } else { // ACK
   //   std::vector<msg_seq_t> seqs;
   //   for (uint8_t i = 0; i < nb; ++i) {
@@ -195,6 +195,6 @@ Message Message::deserialize(const char* buffer) {
   //     offset += sizeof(seq);
   //     seqs.push_back(seq);
   //   }
-  //   return Message(type, nb, std::move(seqs));
+  //   return Packet(type, nb, std::move(seqs));
   // }
 }

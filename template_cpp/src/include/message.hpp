@@ -17,44 +17,50 @@
 enum MessageType : uint8_t {
   MES = 0,
   ACK = 1,
-  NACK = 2
+  NACK = 2,
 };
 
-/**
- * Class representing a network message with serialization and deserialization capabilities.
- * TODO: reduce size of ACK messages by only including link sequence numbers.
- * Messages of type MES contain a list of tuples of link sequence number, origin id, and message sequence number.
- * Messages of type ACK contain a list of message sequence numbers being acknowledged. 
- */
+// ======================== Node message class ========================
 class Message {
+
+};
+
+// ======================== Link packet class ======================== 
+/**
+ * Class representing a network packet with serialization and deserialization capabilities.
+ * TODO: reduce size of ACK packets by only including link sequence numbers.
+ * Packets of type MES contain a list of tuples of link sequence number, origin id, and packet sequence number.
+ * Packets of type ACK contain a list of packet sequence numbers being acknowledged. 
+ */
+class Packet {
 public:
   // Constructor for MES type
-  Message(MessageType type, uint8_t nb_m, 
+  Packet(MessageType type, uint8_t nb_m, 
           std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payloads);
   
   // Constructor for ACK type
-  // Message(MessageType type, uint8_t nb_m, 
+  // Packet(MessageType type, uint8_t nb_m, 
   //         std::vector<msg_seq_t> seqs);
 
   MessageType getType() const;
   uint8_t getNbMes() const;
   // proc_id_t getOriginId() const;
 
-  // For MES messages
+  // For MES packets
   const std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>& getPayloads() const;
   
-  // For ACK messages
+  // For ACK packets
   const std::vector<msg_seq_t> getSeqs() const;
 
-  Message toAck();
+  Packet toAck();
   size_t serializedSize() const;
 
-  // Debugging functions for displaying messages
-  static void displayMessage(const Message& message);
+  // Debugging functions for displaying packets
+  static void displayPacket(const Packet& packet);
   static void displaySerialized(const char* serialized);
 
   const char * serialize() const;
-  static Message deserialize(const char * buffer);
+  static Packet deserialize(const char * buffer);
 
   static constexpr msg_seq_t max_msgs = MAX_MESSAGES_PER_PACKET;
   static constexpr int32_t mes_max_size = 1 + 1 +  max_msgs * (sizeof(msg_seq_t) + sizeof(proc_id_t) + sizeof(msg_seq_t));
@@ -64,10 +70,10 @@ public:
 private:
   MessageType m_type;
   proc_id_t origin_id;
-  uint8_t nb_mes; // maximum 8 messages per Message
+  uint8_t nb_mes; // maximum 8 packets per Packet
   std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>> payload;
 
-  // Payload for MES messages or sequence numbers for ACK messages
+  // Payload for MES packets or sequence numbers for ACK packets
   // std::variant<
   //   std::vector<std::tuple<msg_seq_t, proc_id_t, msg_seq_t>>, // for MES type
   //   std::vector<msg_seq_t>                                    // for ACK type
