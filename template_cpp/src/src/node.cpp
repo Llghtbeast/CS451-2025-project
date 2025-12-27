@@ -171,7 +171,7 @@ void Node::listen()
     // std::cout << "message received from " << sender_ip_and_port << "" << std::endl;
 
     Packet pkt = Packet::deserialize(buffer.data());
-    pkt.displayPacket();
+    // pkt.displayPacket();
   
     // Process message through perfect link -> extract new received messages
     std::array<bool, MAX_MESSAGES_PER_PACKET> received_msgs = links[sender_ip_and_port]->receive(pkt);
@@ -202,11 +202,11 @@ void Node::listen()
       }
 
       // Print received message and all data structures
-      std::cout << "\n=== Packet State ===" << std::endl;
-      std::cout << "Received message (" << msgs[i].origin << ", " << msgs[i].seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
+      // std::cout << "\n=== Packet State ===" << std::endl;
+      // std::cout << "Received message (" << msgs[i].origin << ", " << msgs[i].seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
       
-      if (can_deliver(msgs[i].origin, msgs[i].seq)) std::cout << "Delivering message: (" << msgs[i].origin << ", " << msgs[i].seq << ")" << std::endl;
-      std::cout << "==================\n" << std::endl;
+      // if (can_deliver(msgs[i].origin, msgs[i].seq)) std::cout << "Delivering message: (" << msgs[i].origin << ", " << msgs[i].seq << ")" << std::endl;
+      // std::cout << "==================\n" << std::endl;
 
       // Try delivering this message and subsequent messages
       msg_seq_t msg_to_deliver = msgs[i].seq;
