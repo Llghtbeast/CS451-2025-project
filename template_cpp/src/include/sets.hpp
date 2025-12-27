@@ -4,9 +4,7 @@
 #include <set>
 #include <vector>
 #include <mutex>
-#include <functional>
 #include <stdbool.h>
-#include <condition_variable>
 #include <iostream>
 #include <cassert>
 
@@ -15,12 +13,12 @@
 #include "message.hpp"
 
 // Generic comparator for tuples
-struct TupleFirstElementComparator {
-    template<typename Tuple>
-    bool operator()(const Tuple& a, const Tuple& b) const {
-        return std::get<0>(a) < std::get<0>(b);
-    }
-};
+// struct TupleFirstElementComparator {
+//     template<typename Tuple>
+//     bool operator()(const Tuple& a, const Tuple& b) const {
+//         return std::get<0>(a) < std::get<0>(b);
+//     }
+// };
 
 // Concurrent set
 template <typename T, typename Compare = std::less<T>>
@@ -57,7 +55,6 @@ private:
   size_t maxSize_;
   std::set<T, Compare> set_;
   mutable std::mutex mutex_;
-  std::condition_variable cv_;
 };
 
 // Sliding set that continuously trims the starting consecutive elements to avoid unbounded growth
@@ -79,6 +76,7 @@ public:
   // Modifiers
   std::pair<typename std::set<T, Compare>::iterator, bool> insert(const T& value);
   std::vector<bool> insert(const std::vector<T> &values);
+  std::array<bool, MAX_MESSAGES_PER_PACKET> insert(const std::array<T, MAX_MESSAGES_PER_PACKET>& values, uint8_t count);
 private:
   void popConsecutiveFront();
   

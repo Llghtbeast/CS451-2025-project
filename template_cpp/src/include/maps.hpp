@@ -9,6 +9,7 @@
 #include <set> // for template instantiation
 
 #include "globals.hpp"
+#include "deque.hpp"
 
 // Concurrent map wrapper around std::map
 template <typename Key, typename Value, typename Compare = std::less<Key>>
@@ -20,7 +21,8 @@ public:
   using map_type = std::map<Key, Value, Compare>;
   using iterator = typename map_type::iterator;
 
-  explicit ConcurrentMap() = default;
+  ConcurrentMap();
+  ConcurrentMap(bool bounded);
   ~ConcurrentMap() = default;
 
   // Capacity methods
@@ -31,6 +33,9 @@ public:
   std::pair<iterator, bool> insert(const Key &key, const Value &value);
   void erase(const Key &key);
   void erase(const std::vector<Key> &keys);
+  void erase(const std::array<Key, MAX_MESSAGES_PER_PACKET>& keys);
+
+  std::vector<value_type> complete(ConcurrentDeque<std::pair<Key, Value>>& queue);
 
   // Convenience helpers for when Value is a container (eg std::set<proc_id_t>):
   // Insert a member into the mapped container. If key does not exist, create it.
@@ -49,6 +54,8 @@ public:
   bool contains(const Key &key) const;
   std::vector<value_type> snapshot() const;
 private:
+  bool bounded_;
+  size_t maxSize_;
   map_type map_;
   mutable std::mutex mutex_;
 };

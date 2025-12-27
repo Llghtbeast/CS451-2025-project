@@ -18,6 +18,7 @@
 #include "message.hpp"
 #include "logger.hpp"
 #include "sets.hpp"
+#include "maps.hpp"
 #include "deque.hpp"
 
 
@@ -52,7 +53,7 @@ class PerfectLink {
     * Add packet to delivered list, send ACK to sender, and return true if packet was not already delivered. Otherwise, return false.
     * @param packet The packet to respond to.
     */
-  std::vector<bool> receive(Packet packet);
+  std::array<bool, MAX_MESSAGES_PER_PACKET> receive(Packet packet);
 
 private:
   int socket;
@@ -62,11 +63,11 @@ private:
   // Sending
   msg_seq_t link_seq = 0;
   
-  ConcurrentDeque<std::pair<pkt_seq_t, Message>> message_queue;
-  ConcurrentSet<std::pair<pkt_seq_t, Message>, TupleFirstElementComparator> pending_msgs;
+  ConcurrentDeque<std::pair<pkt_seq_t, Message>> packet_queue;
+  ConcurrentMap<pkt_seq_t, Message> pending_pkts;
   
   // Reception
-  SlidingSet<msg_seq_t> deliveredPackets;
+  SlidingSet<pkt_seq_t> delivered_pkts;
   
 public:
   static constexpr msg_seq_t window_size = SEND_WINDOW_SIZE; 

@@ -5,6 +5,7 @@
 #include <vector>
 #include <mutex>
 #include <condition_variable>
+#include <set>
 
 #include "globals.hpp"
 #include "message.hpp"

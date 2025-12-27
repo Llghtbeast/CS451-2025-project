@@ -14,19 +14,19 @@ void Message::displayMessage(const Message& msg)
   std::cout << msg.origin << "\n";
 }
 
-void Message::serializeTo(std::vector<char>& buffer) const 
+void Message::serializeTo(char *buffer, size_t &offset) const
 {
   msg_seq_t seq_network = convertToNetwork(seq);
   proc_id_t orig_network = convertToNetwork(origin);
   
-  const char* p1 = reinterpret_cast<const char*>(&seq_network);
-  buffer.insert(buffer.end(), p1, p1 + sizeof(seq_network));
+  std::memcpy(buffer + offset, &seq_network, sizeof(seq_network));
+  offset += sizeof(seq_network);
   
-  const char* p2 = reinterpret_cast<const char*>(&orig_network);
-  buffer.insert(buffer.end(), p2, p2 + sizeof(orig_network));
+  std::memcpy(buffer + offset, &orig_network, sizeof(orig_network));
+  offset += sizeof(orig_network);
 }
 
-Message Message::deserialize(const char *buffer, size_t& offset)
+Message Message::deserialize(const char *buffer, size_t &offset)
 {
   msg_seq_t seq_network;
   proc_id_t orig_network;
@@ -42,40 +42,38 @@ Message Message::deserialize(const char *buffer, size_t& offset)
 
 // =================== Packet implementation =================== 
 // Constructor for MES
-Packet::Packet(MessageType type, uint8_t nb_m, 
-                 std::vector<std::pair<pkt_seq_t, Message>> payloads)
-    : m_type(type), origin_id(0), nb_mes(nb_m), payload(std::move(payloads)) 
+Packet::Packet(MessageType type, uint8_t nb_m,
+                const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>& seqs,
+                const std::array<Message, MAX_MESSAGES_PER_PACKET>& msgs)
+    : m_type(type), nb_mes(nb_m), payload(MesPayload{seqs, msgs})
 {
-  assert(nb_m == payload.size());
+  assert(type == MessageType::MES); 
+  assert(nb_m <= MAX_MESSAGES_PER_PACKET);
 }
 
-// Packet::Packet(MessageType type, uint8_t nb_m, std::vector<msg_seq_t> seqs)
-//     : m_type(type), nb_mes(nb_m), payload(std::move(seqs)) 
-// {
-//   assert(type == MessageType::ACK);
-//   assert(nb_m == seqs.size());
-// }
+Packet::Packet(MessageType type, uint8_t nb_m, 
+                const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>& seqs)
+    : m_type(type), nb_mes(nb_m), payload(seqs) 
+{
+  assert(type == MessageType::ACK);
+  assert(nb_m <= MAX_MESSAGES_PER_PACKET);
+}
 
 MessageType Packet::getType() const  { return m_type; }
 uint8_t Packet::getNbMes() const     { return nb_mes; }
 
-const std::vector<std::pair<pkt_seq_t, Message>>& Packet::getPayloads() const 
+const std::array<Message, MAX_MESSAGES_PER_PACKET>& Packet::getMessages() const 
 {
-  return payload;
-  // assert(m_type == MessageType::MES);
-  // return std::get<0>(payload);
+  assert(m_type == MessageType::MES);
+  return std::get<0>(payload).msgs;
 }
 
-const std::vector<msg_seq_t> Packet::getSeqs() const
+const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>& Packet::getSeqs() const
 { 
-  std::vector<msg_seq_t> seqs;
-  seqs.reserve(nb_mes);
-  for (const auto& [seq, _] : payload) {
-    seqs.push_back(seq);
-  }
-  return seqs; 
-  // assert(m_type == MessageType::ACK);
-  // return std::get<1>(payload);
+  if (m_type == MessageType::MES) 
+    return std::get<0>(payload).seqs; 
+  else
+    return std::get<1>(payload);
 }
 
 /** 
@@ -83,42 +81,45 @@ const std::vector<msg_seq_t> Packet::getSeqs() const
  */
 Packet Packet::toAck()
 {
-  // // Extract link sequence numbers from MES payload
-  // auto payloads = std::get<0>(payload);
-  // std::vector<msg_seq_t> seqs;
-  // seqs.reserve(nb_mes);
-  // for (const auto& tup : payloads) {
-  //   // extract link sequence number
-  //   seqs.push_back(std::get<0>(tup)); 
-  // }
-  
-  // Construct ACK message
-  Packet new_msg = Packet(ACK, nb_mes, payload);
-  return new_msg;
+  assert (m_type == MES);
+
+  const auto& data = std::get<0>(payload);
+  return Packet(ACK, nb_mes, data.seqs);
 }
 
 size_t Packet::serializedSize() const 
 {
   size_t size = sizeof(m_type) + sizeof(nb_mes);
 
-  // if (m_type == MES) {
-  size += nb_mes * (sizeof(pkt_seq_t) + Message::serializedSize);
-  // } else if (m_type == ACK) {
-  //   size += nb_mes * sizeof(msg_seq_t);
-  // }
-
+  if (m_type == MES) {
+    size += nb_mes * (sizeof(pkt_seq_t) + Message::serializedSize);
+  } else if (m_type == ACK) {
+    size += nb_mes * sizeof(pkt_seq_t);
+  }
   return size;
 }
 
-void Packet::displayPacket(const Packet& message)
+void Packet::displayPacket()
 {
-  std::cout << "Packet Type: " << static_cast<int>(message.getType()) << "" << std::endl;
-  std::cout << "Number of Packets: " << static_cast<int>(message.getNbMes()) << "" << std::endl;
+  std::cout << "Packet Type: " << static_cast<int>(m_type) << "" << std::endl;
+  std::cout << "Number of Packets: " << static_cast<int>(nb_mes) << "" << std::endl;
   std::cout << "Payload:\n";
-  for (const auto& [seq, msg] : message.getPayloads()) {
-    std::cout << "    ";
-    std::cout << seq<< " ";
-    Message::displayMessage(msg);
+  if (m_type == MessageType::MES)
+  {
+    const auto& data = std::get<0>(payload);
+    for (size_t i = 0; i < nb_mes; i++)
+    {
+      std::cout << "    pkt_seq: " << data.seqs[i] << " ";
+      Message::displayMessage(data.msgs[i]);
+    }
+  }
+  else
+  {
+    std::cout << "    pkt_seqs: ";
+    const auto& data = std::get<1>(payload);
+    for (const auto& pkt : data) {
+      std::cout << pkt << " ";
+    }
   }
   std::cout << "" << std::endl;
 }
@@ -136,41 +137,38 @@ void Packet::displaySerialized(const char* serialized)
 }
 
 const char* Packet::serialize() const {
-  serialized_buffer.clear();
-  serialized_buffer.reserve(serializedSize());
-  
+  size_t offset = 0;
   // Write the message type (1 byte)
-  serialized_buffer.push_back(static_cast<char>(m_type));
+  serialized_buffer[offset++] = static_cast<char>(m_type);
   
   // Write the number of messages (1 byte)
-  serialized_buffer.push_back(static_cast<char>(nb_mes));
+  serialized_buffer[offset++] = static_cast<char>(nb_mes);
   
-  // Serialize payload with network byte order conversion
-  // std::visit([this](const auto& data) {
-  //   using T = std::decay_t<decltype(data)>;
-    
-  //   if constexpr (std::is_same_v<T, std::vector<std::pair<pkt_seq_t, Message>>>) {
-  //     // MES type
-  for (const auto& [pkt, msg] : payload) {
-    // Sequence number
-    msg_seq_t pkt_network = convertToNetwork(pkt);
-    const char* p = reinterpret_cast<const char*>(&pkt_network);
-    serialized_buffer.insert(serialized_buffer.end(), p, p + sizeof(pkt_network));
-    
-    // serialize message
-    msg.serializeTo(serialized_buffer);
+  if (m_type == MES) 
+  {
+    const auto& data = std::get<0>(payload);
+    for (size_t i = 0; i < nb_mes; i++)
+    {
+      // Sequence number
+      msg_seq_t pkt_network = convertToNetwork(data.seqs[i]);
+      std::memcpy(&serialized_buffer[offset], &pkt_network, sizeof(pkt_network));
+      offset += sizeof(pkt_network);
+      
+      // serialize message
+      data.msgs[i].serializeTo(serialized_buffer.data(), offset);
+    }
   }
-  //   } else {
-  //     // ACK type
-  //     for (const auto& seq : data) {
-  //       msg_seq_t seq_network = convertToNetwork(seq);
-  //       serialized_buffer.insert(serialized_buffer.end(),
-  //                               reinterpret_cast<const char*>(&seq_network),
-  //                               reinterpret_cast<const char*>(&seq_network) + sizeof(seq_network));
-  //     }
-  //   }
-  // }, payload);
-  
+  else
+  {
+    const auto& data = std::get<1>(payload);
+    for (const auto& pkt : data) {
+      // Sequence number
+      msg_seq_t pkt_network = convertToNetwork(pkt);
+      std::memcpy(&serialized_buffer[offset], &pkt_network, sizeof(pkt_network));
+      offset += sizeof(pkt_network);
+    }
+  }
+
   return serialized_buffer.data();
 }
 
@@ -183,34 +181,35 @@ Packet Packet::deserialize(const char* buffer) {
   // STEP 2: Read nb_mes (1 byte)
   uint8_t nb = static_cast<uint8_t>(buffer[offset++]);
   
-  // if (type == MessageType::MES) {
-  std::vector<std::pair<pkt_seq_t, Message>> payloads;
-  for (uint8_t i = 0; i < nb; ++i) {
-    pkt_seq_t pkt;
-    msg_seq_t seq;
-    proc_id_t orig;
-    
-    // Read and convert from network byte order
-    pkt_seq_t pkt_network;
-    std::memcpy(&pkt_network, buffer + offset, sizeof(pkt_network));
-    pkt = convertFromNetwork(pkt_network);
-    offset += sizeof(pkt);
+  if (type == MessageType::MES) 
+  {
+    std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs;
+    std::array<Message, MAX_MESSAGES_PER_PACKET> msgs;
 
-    Message msg = Message::deserialize(buffer, offset);
+    for (uint8_t i = 0; i < nb; ++i) {
+      pkt_seq_t pkt;
+      
+      // Read and convert from network byte order
+      pkt_seq_t pkt_network;
+      std::memcpy(&pkt_network, buffer + offset, sizeof(pkt_network));
+      offset += sizeof(pkt_network);
 
-    payloads.emplace_back(pkt, msg);
+      seqs[i] = convertFromNetwork(pkt_network);
+      msgs[i] = Message::deserialize(buffer, offset);
+    }
+
+    return Packet(MES, nb, seqs, msgs);
+  } 
+  else
+  {
+    std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs;
+
+    for (uint8_t i = 0; i < nb; ++i) {
+      msg_seq_t seq_network;
+      std::memcpy(&seq_network, buffer + offset, sizeof(seq_network));
+      offset += sizeof(seq_network);
+      seqs[i] = convertFromNetwork(seq_network);
+    }
+    return Packet(ACK, nb, seqs);
   }
-
-  return Packet(type, nb, std::move(payloads));
-  // } else { // ACK
-  //   std::vector<msg_seq_t> seqs;
-  //   for (uint8_t i = 0; i < nb; ++i) {
-  //     msg_seq_t seq_network;
-  //     std::memcpy(&seq_network, buffer + offset, sizeof(seq_network));
-  //     msg_seq_t seq = convertFromNetwork(seq_network);
-  //     offset += sizeof(seq);
-  //     seqs.push_back(seq);
-  //   }
-  //   return Packet(type, nb, std::move(seqs));
-  // }
 }

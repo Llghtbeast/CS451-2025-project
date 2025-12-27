@@ -2,7 +2,7 @@
 
 PerfectLink::PerfectLink(int socket, sockaddr_in source_addr, sockaddr_in dest_addr)
   : socket(socket), source_addr(source_addr), dest_addr(dest_addr), 
-    message_queue(), pending_msgs(true), deliveredPackets()
+    packet_queue(), pending_pkts(true), delivered_pkts()
 {}
 
 void PerfectLink::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
@@ -13,29 +13,31 @@ void PerfectLink::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
   std::pair<pkt_seq_t, Message> messageTuple = std::make_pair(link_seq, message);
   
   // Append message to end of message queue
-  message_queue.push_back(messageTuple); 
+  packet_queue.push_back(messageTuple); 
 }
 
 void PerfectLink::send()
 {
   // No packets to send
-  if (pending_msgs.empty() && message_queue.empty()) return;
+  if (pending_pkts.empty() && packet_queue.empty()) return;
 
-  // Complete pending_msgs set with messages from message_queue and get snapshot of new pending_msgs set
-  std::vector<std::pair<pkt_seq_t, Message>> setSnapshot = pending_msgs.complete(message_queue);
+  // Complete pending_pkts set with messages from packet_queue and get snapshot of new pending_pkts set
+  std::vector<std::pair<const pkt_seq_t, Message>> setSnapshot = pending_pkts.complete(packet_queue);
   auto it = setSnapshot.begin();
 
-  // std::cout << "message_queue size: " << message_queue.size() << ", pending_messages size: " << pending_msgs.size() << std::endl;
+  // std::cout << "packet_queue size: " << packet_queue.size() << ", pending_messages size: " << pending_pkts.size() << std::endl;
   
   for (size_t i = 0; i < window_size; i++) {
-    std::vector<std::pair<pkt_seq_t, Message>> msgs;
+    std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs;
+    std::array<Message, MAX_MESSAGES_PER_PACKET> msgs;
 
     for (size_t i = 0; i < Packet::max_msgs && it != setSnapshot.end(); i++, it++) {
-      msgs.push_back(*it);
+      seqs[i] = it->first;
+      msgs[i] = it->second;
     }
     
     assert(msgs.size() <= 8);
-    Packet packet(MES, static_cast<uint8_t>(msgs.size()), msgs);
+    Packet packet(MES, static_cast<uint8_t>(msgs.size()), seqs, msgs);
     // Packet::displayPacket(packet);
     // Packet::displaySerialized(packet.serialize());
     // std::cout << std::endl;
@@ -59,19 +61,19 @@ void PerfectLink::send()
   }
 }
 
-std::vector<bool> PerfectLink::receive(Packet packet)
+std::array<bool, MAX_MESSAGES_PER_PACKET> PerfectLink::receive(Packet packet)
 {
   MessageType type = packet.getType();
 
   if (packet.getType() == MES) { 
     // Update delivered message set and construct delivery status vector
-    std::vector<bool> delivery_status = deliveredPackets.insert(packet.getSeqs());
+    std::array<bool, MAX_MESSAGES_PER_PACKET> delivery_status = delivered_pkts.insert(packet.getSeqs(), packet.getNbMes());
 
     // Transform message to ack and serialize
-    Packet ackMsg = packet.toAck();
+    Packet ack_pkt = packet.toAck();
 
     // Send ACK to sender
-    if (sendto(socket, ackMsg.serialize(), ackMsg.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
+    if (sendto(socket, ack_pkt.serialize(), ack_pkt.serializedSize(), 0, reinterpret_cast<const sockaddr *>(&dest_addr), sizeof(dest_addr)) < 0) {
       std::ostringstream os;
       os << "Failed to send ACK (errno: " << strerror(errno) << ") from " << source_addr.sin_addr.s_addr << ":" << source_addr.sin_port << " to " << dest_addr.sin_addr.s_addr << ":" << dest_addr.sin_port;
       std::cout << os.str() << "\n";
@@ -82,7 +84,7 @@ std::vector<bool> PerfectLink::receive(Packet packet)
   }
   else if (type == ACK) {
     // Remove messages acknowledged by receiver
-    pending_msgs.erase(packet.getPayloads());
+    pending_pkts.erase(packet.getSeqs());
     return {};
   }
   else {

@@ -2,14 +2,14 @@
 
 // ===================== ConcurrentSet start ===================== //
 template <typename T, typename Compare>
-ConcurrentSet<T, Compare>::ConcurrentSet(): bounded_(false), maxSize_(0) {}
+ConcurrentSet<T, Compare>::ConcurrentSet(): bounded_(false), maxSize_(0), set_({}) {}
 
 template <typename T, typename Compare>
 ConcurrentSet<T, Compare>::ConcurrentSet(bool bounded): bounded_(bounded), set_({}) 
 {
   // initialize maxSize to default if set is bounded
   if (bounded) {
-    maxSize_ = MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_QUEUE_SIZE;
+    maxSize_ = MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_CONTAINER_SIZE;
   }
   else {
     maxSize_ = 0;
@@ -42,9 +42,6 @@ typename std::set<T, Compare>::iterator ConcurrentSet<T, Compare>::insert(const 
   // maximum efficiency insertion at the end of the set (we know m_seq is always increasing)
   auto result = set_.insert(set_.end(), value); 
   
-  // Notify any waiting threads that a new message has been enqueued
-  // lock.unlock();
-
   return result;
 }
 
@@ -52,32 +49,22 @@ template <typename T, typename Compare>
 void ConcurrentSet<T, Compare>::erase(const T &value)
 {
   // Lock the set while modifying it
-  // std::unique_lock<std::mutex> lock(mutex_);
   std::lock_guard<std::mutex> lock(mutex_);
   
   // Remove message from set (correctly delivered at target)
   set_.erase(value);
-    
-  // Notify the waiting enqueuer thread that space is available in the set
-  // lock.unlock();
-  // cv_.notify_one();
 }
 
 template <typename T, typename Compare>
 void ConcurrentSet<T, Compare>::erase(const std::vector<T> &values)
 {
   // Lock the set while modifying it
-  // std::unique_lock<std::mutex> lock(mutex_);
   std::lock_guard<std::mutex> lock(mutex_);
   
   // Remove message from set (correctly delivered at target)
   for (T value: values) {
     set_.erase(value);
   }
-  
-  // Notify the waiting enqueuer thread that space is available in the set
-  // lock.unlock();
-  // cv_.notify_one();
 }
 
 template <typename T, typename Compare>
@@ -125,7 +112,6 @@ std::vector<T> ConcurrentSet<T, Compare>::snapshot() const
 
 // Explicit template instantiation for msg_seq_t
 template class ConcurrentSet<msg_seq_t>;
-template class ConcurrentSet<std::pair<pkt_seq_t, Message>, TupleFirstElementComparator>;
 
 
 // ===================== SlidingSet start ===================== //
@@ -176,11 +162,31 @@ std::vector<bool> SlidingSet<T, Compare>::insert(const std::vector<T> &values)
     insertion_result.push_back(!contains(value));
     if (!contains(value)) {
       set_.insert(value);
-      popConsecutiveFront();
     }
   }
+  popConsecutiveFront();
 
   return insertion_result;
+}
+
+template <typename T, typename Compare>
+std::array<bool, MAX_MESSAGES_PER_PACKET> SlidingSet<T, Compare>::insert(
+  const std::array<T, MAX_MESSAGES_PER_PACKET> &values, 
+  uint8_t count)
+{
+  std::array<bool, MAX_MESSAGES_PER_PACKET> insertion_results; 
+  
+  for (size_t i = 0; i < count; i++)
+  {
+    insertion_results[i] = !contains(values[i]);
+    if (!contains(values[i]))
+    {
+      set_.insert(values[i]);
+    }
+  }
+  popConsecutiveFront();
+  
+  return insertion_results;
 }
 
 template <typename T, typename Compare>
