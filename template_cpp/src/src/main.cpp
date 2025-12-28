@@ -93,14 +93,14 @@ int main(int argc, char **argv) {
     throw std::invalid_argument(os.str());
   }
 
-  // Extract total number of messages sent by senders and id of receiver
+  // Extract lattice agreement parameters (p, vs, ds)
   std::istringstream iss(config);
-  msg_seq_t total_m;
-  if (!(iss >> total_m)) {
+  prop_nb_t shots; uint32_t vs; uint32_t ds;
+  if (!(iss >> shots >> vs >> ds)) {
     throw std::invalid_argument("Error parsing integers from config file");
   }
   
-  std::cout << "Broadcasting and delivering messages...\n" << std::endl;
+  std::cout << "Creating nodes for lattice agreement (p=" << shots << ", vs=" << vs << ", ds=" << ds << ")\n" << std::endl;
 
   // Create node
   Node node(hosts, parser.id(), parser.outputPath());
@@ -116,9 +116,9 @@ int main(int argc, char **argv) {
     // auto start_time = std::chrono::high_resolution_clock::now();
         
     // Start enqueueing messages if this is a sender
-    for (size_t i = 0; i < total_m; i++) {
+    for (size_t i = 0; i < shots; i++) {
       // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
-      node.broadcast(parser.id());
+      node.propose({});
     }
   
     std::cout << "All messages enqueued.\n" << std::endl;

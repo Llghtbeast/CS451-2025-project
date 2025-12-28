@@ -44,6 +44,20 @@ void Logger::logDelivery(uint64_t sender_id, msg_seq_t seq)
   enqueueLine(os.str());
 }
 
+void Logger::logDecision(std::set<proposal_t>& proposals)
+{
+  std::ostringstream os;
+  auto it = proposals.begin();
+  os << *it; it++; // peek at first element (avoids trailing whitespace after last element)
+
+  // Add all elements to string
+  for (; it != proposals.end(); it++)
+  {
+    os << " " << *it;
+  }
+  enqueueLine(os.str());  
+}
+
 /**
  * Enqueues a log line to be written to the log file.
  * @param line The log line to enqueue.

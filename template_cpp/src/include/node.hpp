@@ -15,14 +15,15 @@
 #include <atomic>
 #include <queue>
 
+#include "globals.hpp"
+#include "helper.hpp"
 #include "parser.hpp"
 #include "link.hpp"
-#include "helper.hpp"
+#include "lattice_agreement.hpp"
 #include "message.hpp"
 #include "logger.hpp"
 #include "sets.hpp"
 #include "maps.hpp"
-#include "globals.hpp"
 
 /**
  * Implementation of a network node that can send and receive messages.
@@ -36,19 +37,15 @@ public:
    * @param receiver_id The unique identifier for the network's receiver node.
    * @param outputPath The path to the output file where messages will be logged.
    */
-  Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath);
+  Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath, uint32_t ds);
   
+  // Destructor
+  ~Node();
+
   /**
    * Starts the node's sending and listening threads.
    */
   void start();
-
-  /**
-   * Enqueues a message to be broadcast
-   * @param origin_id The ID of the origin node of the message. If it is this node's ID, a new sequence number is generated. Otherwise, the provided sequence number is used.
-   * @param seq The sequence number of the message. If origin_id is this node's ID, this parameter is ignored.
-   */
-  void broadcast(proc_id_t origin_id, msg_seq_t seq = 0);
 
   /**
    * Cleans up resources used by the node, including closing the socket and output file.
@@ -65,7 +62,16 @@ public:
    */
   void terminate();
 
+  void propose(std::set<proposal_t> proposal);
+
 private:
+  /**
+   * Enqueues a message to be broadcast
+   * @param origin_id The ID of the origin node of the message. If it is this node's ID, a new sequence number is generated. Otherwise, the provided sequence number is used.
+   * @param seq The sequence number of the message. If origin_id is this node's ID, this parameter is ignored.
+   */
+  void broadcast(proc_id_t origin_id, msg_seq_t seq = 0);
+
   /**
    * Packet sending loop that continuously sends messages to the specified destination address while the run flag is set.
    */
@@ -82,12 +88,19 @@ private:
   void log();
 
   /**
-   * Determines if a message can be delivered based on the acknowledgments received from other nodes.
+   * Process lattice agreement (start new lattice agreement rounds)
+   * TODO: Later can use mutliple threads that run this same loop to have multiple concurrent
+   * lattice agreement instances all consuming proposals
+   */
+  void processLatticeAgreement();
+
+  /**
+   * In FIFO broadcast, determines if a message can be delivered based on the acknowledgments received from other nodes.
    * @param origin_id The ID of the origin node of the message.
    * @param seq The sequence number of the message.
    * @return true if the message can be delivered, false otherwise.
    */
-  bool can_deliver(proc_id_t origin_id, msg_seq_t seq);
+  // bool can_deliver(proc_id_t origin_id, msg_seq_t seq);
   
 private:
   msg_seq_t m_seq = 0;
@@ -103,9 +116,16 @@ private:
   std::unordered_map<std::string, proc_id_t> others_id;
   std::unordered_map<std::string, std::unique_ptr<PerfectLink>> links;
 
+  // Primitive implementations
+  friend class LatticeAgreement; // Allow instances of LatticeAgreement to access attributes of Node
+  LatticeAgreement lattice_agreement;
+
+  ConcurrentDeque<std::set<proposal_t>> proposal_queue;
   std::unordered_map<proc_id_t, SlidingSet<msg_seq_t>> delivered_messages;
 
+  // Worker threads
   std::thread sender_thread;
   std::thread listener_thread;
   std::thread logger_thread;
+  std::thread lattice_agreement_processor_thread;
 };
