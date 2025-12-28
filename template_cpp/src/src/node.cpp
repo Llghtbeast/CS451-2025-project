@@ -1,9 +1,8 @@
 #include "node.hpp"
 
 Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath)
-  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size()), 
-    pending_messages(), next_expected_msg(), acked_by()
-  {
+  : id(id), logger(std::make_unique<Logger>(outputPath)), nb_nodes(nodes.size())
+{
     // Initialize run flag
     runFlag.store(false);
 
@@ -43,9 +42,7 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
       }
 
       // Initialize delivered messages set for each node
-      pending_messages.try_emplace(n.id, false); // initialize unbounded concurrent message set
-      next_expected_msg.try_emplace(n.id, 1);
-      acked_by.try_emplace(n.id);
+      delivered_messages.try_emplace(n.id);
     }
 
     // Add this node's id to the map too (it will also broadcast)
@@ -87,8 +84,7 @@ void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
   if (origin_id == id) {
     // Log broadcast, add to pending messages and acked_by structures
     logger->logBroadcast(m_seq);
-    pending_messages[origin_id].insert(seq);
-    acked_by[origin_id].add_to_mapped_set(seq, origin_id);
+    logger->logDelivery(id, m_seq);
   }
 
   std::this_thread::sleep_for(std::chrono::milliseconds(BROADCAST_COOLDOWN_MS));
@@ -187,45 +183,13 @@ void Node::listen()
       if (!received_msgs[i]) continue;
             
       // If message has already been delivered, SKIP
-      if (msgs[i].seq < next_expected_msg[msgs[i].origin]) continue;
+      if (delivered_messages[msgs[i].origin].contains(msgs[i].seq)) continue;
       
-      // Update acked_by structure
-      acked_by[msgs[i].origin].add_to_mapped_set(msgs[i].seq, others_id[sender_ip_and_port]); // Ack by sender of message
-      
-      // Check if message is already in pending set
-      if (!pending_messages[msgs[i].origin].contains(msgs[i].seq)) {;
-        // std::cout << "Adding (" << msgs[i].origin << ", " << msgs[i].seq << ") to pending list" << std::endl;
-        // Add message to pending messages and acked_by structures
-        pending_messages[msgs[i].origin].insert(msgs[i].seq);
-        acked_by[msgs[i].origin].add_to_mapped_set(msgs[i].seq, id); // Ack by self
-        broadcast(msgs[i].origin, msgs[i].seq);
-      }
+      // Log delivery
+      logger->logDelivery(msgs[i].origin, msgs[i].seq);
 
-      // Print received message and all data structures
-      // std::cout << "\n=== Packet State ===" << std::endl;
-      // std::cout << "Received message (" << msgs[i].origin << ", " << msgs[i].seq << "), from: " << others_id[sender_ip_and_port] << std::endl;
-      
-      // if (can_deliver(msgs[i].origin, msgs[i].seq)) std::cout << "Delivering message: (" << msgs[i].origin << ", " << msgs[i].seq << ")" << std::endl;
-      // std::cout << "==================\n" << std::endl;
-
-      // Try delivering this message and subsequent messages
-      msg_seq_t msg_to_deliver = msgs[i].seq;
-      while (true) {
-        // If a message cannot be delivered, exit delivering loop
-        if (!can_deliver(msgs[i].origin, msg_to_deliver)) break;
-
-        // Deliver the message and try on next message
-        // Log delivery
-        logger->logDelivery(msgs[i].origin, msg_to_deliver);
-        // Remove from pending messages
-        pending_messages[msgs[i].origin].erase(msg_to_deliver);
-        acked_by[msgs[i].origin].erase(msg_to_deliver);
-
-        // Add to delivered messages
-        next_expected_msg[msgs[i].origin]++;
-
-        msg_to_deliver++;
-      }
+      // add message to delivered set
+      delivered_messages[msgs[i].origin].insert(msgs[i].seq);
     }
   }
 }
@@ -239,13 +203,4 @@ void Node::log() {
     logger->write();
     std::this_thread::sleep_for(std::chrono::milliseconds(LOG_TIMEOUT));
   }
-}
-
-bool Node::can_deliver(proc_id_t origin_id, msg_seq_t seq)
-{
-  // Check if seq is the next expected message and that more than half the process have acked that msg.
-  if (next_expected_msg[origin_id] == seq) {
-    return acked_by[origin_id].mapped_set_size(seq) > nb_nodes / 2;
-  }
-  return false;
 }
