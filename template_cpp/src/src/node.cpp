@@ -150,7 +150,7 @@ void Node::listen()
   {
     // Prepare buffer to receive message
     // std::cout << "Listening for message" << std::endl;
-    std::vector<char> buffer(Packet::max_size);
+    std::array<char, Packet::max_size> buffer;
     sockaddr_in sender_addr;
     socklen_t addr_len = sizeof(sender_addr);
   

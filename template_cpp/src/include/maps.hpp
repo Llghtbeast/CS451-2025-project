@@ -35,7 +35,7 @@ public:
   void erase(const std::vector<Key> &keys);
   void erase(const std::array<Key, MAX_MESSAGES_PER_PACKET>& keys);
 
-  std::vector<value_type> complete(ConcurrentDeque<std::pair<Key, Value>>& queue);
+  std::pair<std::array<value_type, MAX_CONTAINER_SIZE>, size_t> complete(ConcurrentDeque<std::pair<Key, Value>>& queue);
 
   // Convenience helpers for when Value is a container (eg std::set<proc_id_t>):
   // Insert a member into the mapped container. If key does not exist, create it.
@@ -53,9 +53,12 @@ public:
   iterator find(const Key &key);
   bool contains(const Key &key) const;
   std::vector<value_type> snapshot() const;
+
+public:
+  static constexpr size_t max_size = MAX_CONTAINER_SIZE;
+
 private:
   bool bounded_;
-  size_t maxSize_;
   map_type map_;
   mutable std::mutex mutex_;
 };

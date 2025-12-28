@@ -22,23 +22,22 @@ void PerfectLink::send()
   if (pending_pkts.empty() && packet_queue.empty()) return;
 
   // Complete pending_pkts set with messages from packet_queue and get snapshot of new pending_pkts set
-  std::vector<std::pair<const pkt_seq_t, Message>> setSnapshot = pending_pkts.complete(packet_queue);
-  auto it = setSnapshot.begin();
+  const auto& [setSnapshot, size] = pending_pkts.complete(packet_queue);
+  size_t it = 0;
 
   // std::cout << "packet_queue size: " << packet_queue.size() << ", pending_messages size: " << pending_pkts.size() << std::endl;
-  
   for (size_t i = 0; i < window_size; i++) {
     std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs;
     std::array<Message, MAX_MESSAGES_PER_PACKET> msgs;
 
-    for (size_t i = 0; i < Packet::max_msgs && it != setSnapshot.end(); i++, it++) {
-      seqs[i] = it->first;
-      msgs[i] = it->second;
+    uint8_t count = 0;
+    for (; count < Packet::max_msgs && it < size; count++, it++) {
+      seqs[count] = setSnapshot[it].first;
+      msgs[count] = setSnapshot[it].second;
     }
     
-    assert(msgs.size() <= 8);
-    Packet packet(MES, static_cast<uint8_t>(msgs.size()), seqs, msgs);
-    // Packet::displayPacket(packet);
+    Packet packet(MES, count, seqs, msgs);
+    // packet.displayPacket();
     // Packet::displaySerialized(packet.serialize());
     // std::cout << std::endl;
   
@@ -54,7 +53,7 @@ void PerfectLink::send()
     // std::cout << "Packet sent successfully." << std::endl;
 
     // Terminate if all messages have been sent
-    if (it == setSnapshot.end()) {
+    if (it == size) {
       // std::cout << "All messages in queue sent." << std::endl;
       break;
     }

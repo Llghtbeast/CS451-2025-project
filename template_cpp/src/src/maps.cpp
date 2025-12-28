@@ -3,20 +3,13 @@
 // ===================== ConcurrentMap start ===================== //
 template <typename Key, typename Value, typename Compare>
 ConcurrentMap<Key, Value, Compare>::ConcurrentMap()
-  : bounded_(false), maxSize_(0), map_({})
+  : bounded_(false), map_({})
 {}
 
 template <typename Key, typename Value, typename Compare>
 ConcurrentMap<Key, Value, Compare>::ConcurrentMap(bool bounded)
-  : bounded_(bounded), maxSize_(0), map_({})
-{
-  if (bounded) {
-    maxSize_ = MAX_MESSAGES_PER_PACKET * SEND_WINDOW_SIZE * MAX_CONTAINER_SIZE;
-  }
-  else {
-    maxSize_ = 0;
-  }
-}
+  : bounded_(bounded), map_({})
+{}
 
 // Capacity methods
 template <typename Key, typename Value, typename Compare>
@@ -72,7 +65,7 @@ void ConcurrentMap<Key, Value, Compare>::erase(const std::array<Key, MAX_MESSAGE
 }
 
 template <typename Key, typename Value, typename Compare>
-std::vector<std::pair<const Key, Value>> ConcurrentMap<Key, Value, Compare>::complete(ConcurrentDeque<std::pair<Key, Value>> &queue)
+std::pair<std::array<typename ConcurrentMap<Key, Value, Compare>::value_type, ConcurrentMap<Key, Value, Compare>::max_size>, size_t> ConcurrentMap<Key, Value, Compare>::complete(ConcurrentDeque<std::pair<Key, Value>> &queue)
 {
   assert(bounded_);
   std::lock_guard<std::mutex> lock(mutex_);
@@ -81,18 +74,19 @@ std::vector<std::pair<const Key, Value>> ConcurrentMap<Key, Value, Compare>::com
   size_t map_size = map_.size();
 
   // insert k first elements of concurrent queue into map
-  for (const auto& [key, value]: queue.pop_k_front(maxSize_ - map_size))
+  for (const auto& [key, value]: queue.pop_k_front(max_size - map_size))
   {
     map_.emplace(key, value); 
   }
 
   // return snapshot of map
-  std::vector<value_type> result;
-  result.reserve(map_.size());
+  std::array<value_type, ConcurrentMap<Key, Value, Compare>::max_size> result;  
+  size_t i = 0;
   for (const auto &p : map_) {
-    result.push_back(p);
+    new (&result[i]) value_type(p.first, p.second);
+    i++;
   }
-  return result;
+  return std::make_pair(result, i);
 }
 
 // Helpers for container-like Value
@@ -164,6 +158,6 @@ template bool ConcurrentMap<msg_seq_t, std::set<proc_id_t>>::add_to_mapped_set<p
 // Only instantiate the methods actually used for this type
 template ConcurrentMap<pkt_seq_t, Message>::ConcurrentMap(bool);
 template bool ConcurrentMap<pkt_seq_t, Message>::empty() const;
-template std::vector<std::pair<const pkt_seq_t, Message>> 
+template std::pair<std::array<ConcurrentMap<pkt_seq_t, Message>::value_type, ConcurrentMap<pkt_seq_t, Message>::max_size>, size_t>
   ConcurrentMap<pkt_seq_t, Message>::complete(ConcurrentDeque<std::pair<pkt_seq_t, Message>>&);
 template void ConcurrentMap<pkt_seq_t, Message>::erase(const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>&);

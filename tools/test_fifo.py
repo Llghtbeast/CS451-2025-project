@@ -4,6 +4,7 @@ import sys
 import argparse
 from collections import defaultdict
 from pathlib import Path
+from tqdm import tqdm
 
 
 class FIFOURBValidator:
@@ -169,7 +170,7 @@ class FIFOURBValidator:
         
         # Check that all correct processes delivered these messages
         for sender_id, msg_ids in all_delivered.items():
-            for msg_id in msg_ids:
+            for msg_id in tqdm(msg_ids):
                 delivering_correct = [p for p in correct_processes 
                                      if msg_id in self.deliveries[p][sender_id]]
                 
