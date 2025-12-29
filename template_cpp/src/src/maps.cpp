@@ -150,10 +150,12 @@ ConcurrentMap<Key, Value, Compare>::snapshot() const
 }
 // ===================== ConcurrentMap end ===================== //
 
-// Explicit instantiation for ConcurrentMap<msg_seq_t, std::set<proc_id_t>>
-template class ConcurrentMap<msg_seq_t, std::set<proc_id_t>>;
-template bool ConcurrentMap<msg_seq_t, std::set<proc_id_t>>::add_to_mapped_set<proc_id_t>(const msg_seq_t&, const proc_id_t&);
+// Used in lattice_agreement.hpp
+// Explicit instantiation for ConcurrentMap<uint32_t, std::set<proc_id_t>>
+template class ConcurrentMap<uint32_t, std::set<proc_id_t>>;
+template bool ConcurrentMap<uint32_t, std::set<proc_id_t>>::add_to_mapped_set<proc_id_t>(const uint32_t&, const proc_id_t&);
 
+// Used in link.hpp
 // Explicit instantiation for ConcurrentMap<pkt_seq_t, Message>
 // Only instantiate the methods actually used for this type
 template ConcurrentMap<pkt_seq_t, Message>::ConcurrentMap(bool);

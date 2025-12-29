@@ -67,10 +67,16 @@ public:
 private:
   /**
    * Enqueues a message to be broadcast
-   * @param origin_id The ID of the origin node of the message. If it is this node's ID, a new sequence number is generated. Otherwise, the provided sequence number is used.
-   * @param seq The sequence number of the message. If origin_id is this node's ID, this parameter is ignored.
+   * @param msg Message to broadcast
    */
-  void broadcast(proc_id_t origin_id, msg_seq_t seq = 0);
+  void broadcast(Message msg);
+
+  /**
+   * Enqueues a message to be sent to a specific destination
+   * @param msg Message to be sent
+   * @param dest Destination to send the message
+   */
+  void sendTo(Message msg, std::string dest);
 
   /**
    * Packet sending loop that continuously sends messages to the specified destination address while the run flag is set.
@@ -94,17 +100,7 @@ private:
    */
   void processLatticeAgreement();
 
-  /**
-   * In FIFO broadcast, determines if a message can be delivered based on the acknowledgments received from other nodes.
-   * @param origin_id The ID of the origin node of the message.
-   * @param seq The sequence number of the message.
-   * @return true if the message can be delivered, false otherwise.
-   */
-  // bool can_deliver(proc_id_t origin_id, msg_seq_t seq);
-  
 private:
-  msg_seq_t m_seq = 0;
-
   proc_id_t id;
   std::unique_ptr<Logger> logger;
   std::atomic_bool runFlag;
@@ -121,7 +117,6 @@ private:
   LatticeAgreement lattice_agreement;
 
   ConcurrentDeque<std::set<proposal_t>> proposal_queue;
-  std::unordered_map<proc_id_t, SlidingSet<msg_seq_t>> delivered_messages;
 
   // Worker threads
   std::thread sender_thread;

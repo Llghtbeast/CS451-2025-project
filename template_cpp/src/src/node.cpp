@@ -43,9 +43,6 @@ Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath
       // Create network links
       links[addr_hashable] = std::make_unique<PerfectLink>(node_socket, node_addr, n_addr);
     }
-
-    // Initialize delivered messages set for each node
-    delivered_messages.try_emplace(n.id);
   }
 }
 
@@ -110,21 +107,12 @@ void Node::propose(std::set<proposal_t> proposal)
 }
 
 // Private methods:
-void Node::broadcast(proc_id_t origin_id, msg_seq_t seq)
+void Node::broadcast(Message msg)
 {
-  // std::cout << "Broadcasting" << std::endl;
-  // Check if broadcasting node is this node
-  if (seq == 0) assert(origin_id == id);
-  if (origin_id == id) {
-    // Increment message sequence number
-    m_seq++;
-    seq = m_seq;
-  }
-
   // Enqueue message on all perfect links
   for (auto &pair: links) {
     // std::cout << "enqueuing message to " << pair.first << ": (" << origin_id << ", "<< seq << ")" << std::endl;
-    pair.second->enqueueMessage(origin_id, seq);
+    pair.second->enqueueMessage(msg);
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(BROADCAST_COOLDOWN_MS));
 }
@@ -153,12 +141,12 @@ void Node::listen()
   {
     // Prepare buffer to receive message
     // std::cout << "Listening for message" << std::endl;
-    std::array<char, Packet::max_size> buffer;
+    std::array<char, Packet::max_serialized_size> buffer;
     sockaddr_in sender_addr;
     socklen_t addr_len = sizeof(sender_addr);
   
     // Sleeps until message received.
-    ssize_t bytes_received = recvfrom(node_socket, buffer.data(), Packet::max_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len);
+    ssize_t bytes_received = recvfrom(node_socket, buffer.data(), Packet::max_serialized_size, 0, reinterpret_cast<sockaddr *>(&sender_addr), &addr_len);
     if (bytes_received < 0) {
       std::cout << "recvfrom failed\n";
       continue;

@@ -37,10 +37,10 @@ class PerfectLink {
   
   /**
    * Enqueues a packet to be sent later.
-   * @param origin_id The ID of the origin node.
-   * @param m_seq The sequence number of the packet.
+   * @param msg Message to be enqueued
    */
-  void enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq);
+  void enqueueMessage(Message msg);
+  
   /**
   * Send the first enqueued packets.
   * @throws std::runtime_error if sending fails.
@@ -61,7 +61,7 @@ private:
   sockaddr_in dest_addr;
 
   // Sending
-  msg_seq_t link_seq = 0;
+  pkt_seq_t link_seq = 0;
   
   ConcurrentDeque<std::pair<pkt_seq_t, Message>> packet_queue;
   ConcurrentMap<pkt_seq_t, Message> pending_pkts;
@@ -70,5 +70,5 @@ private:
   SlidingSet<pkt_seq_t> delivered_pkts;
   
 public:
-  static constexpr msg_seq_t window_size = SEND_WINDOW_SIZE; 
+  static constexpr uint32_t window_size = SEND_WINDOW_SIZE; 
 };

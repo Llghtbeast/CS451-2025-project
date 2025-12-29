@@ -110,9 +110,7 @@ std::vector<T> ConcurrentSet<T, Compare>::snapshot() const
 }
 // ===================== ConcurrentSet end ===================== //
 
-// Explicit template instantiation for msg_seq_t
-template class ConcurrentSet<msg_seq_t>;
-
+// ConcurrentSet implementation not used in primitive
 
 // ===================== SlidingSet start ===================== //
 template <typename T, typename Compare>
@@ -155,8 +153,6 @@ template <typename T, typename Compare>
 std::vector<bool> SlidingSet<T, Compare>::insert(const std::vector<T> &values)
 {
   std::vector<bool> insertion_result;
-  std::set<msg_seq_t>::iterator it = set_.begin();
-
   for (T value : values) {
     // return true if element not in set
     insertion_result.push_back(!contains(value));
@@ -211,5 +207,7 @@ bool SlidingSet<T, Compare>::contains(const T &value)
   else return set_.find(value) != set_.end();
 }
 // ===================== SlidingSet end ===================== //
-template class SlidingSet<msg_seq_t>;
+
+// template class used in link.hpp
+template class SlidingSet<pkt_seq_t>;
 // template class SlidingSet<std::tuple<proc_id_t, msg_seq_t>>;

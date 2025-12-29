@@ -11,6 +11,7 @@
 #include <iomanip>
 #include <variant>
 #include <cassert>
+#include <set>
 
 #include "globals.hpp"
 #include "helper.hpp"
@@ -26,19 +27,23 @@ class Message {
 public:
   // Constructor
   Message() = default;
-  Message(msg_seq_t seq, proc_id_t origin);
+  Message(MessageType type, prop_nb_t round, const std::set<proposal_t>& proposal_set);
   bool operator==(const Message& other) const;
 
   // helper to display
   static void displayMessage(const Message& msg);
 
+  size_t serializedSize() const;
   void serializeTo(char* buffer, size_t& offset) const;
   static Message deserialize(const char * buffer, size_t& offset);
 
 public:
-  msg_seq_t seq;
-  proc_id_t origin;
-  const static size_t serializedSize = sizeof(msg_seq_t) + sizeof(proc_id_t);
+  MessageType type;
+  prop_nb_t round;
+  uint16_t set_size;
+  std::array<proposal_t, MAX_PROPOSAL_SET_SIZE> proposed_values;
+
+  static constexpr size_t max_serialized_size = sizeof(type) + sizeof(round) + sizeof(set_size) + sizeof(proposal_t) * MAX_PROPOSAL_SET_SIZE;
 };
 
 // ======================== Link packet class ======================== 
@@ -61,7 +66,7 @@ public:
           const std::array<Message, MAX_MESSAGES_PER_PACKET>& msgs);
   // Constructor for ACK type
   Packet(MessageType type, uint8_t nb_m, 
-          const std::array<msg_seq_t, MAX_MESSAGES_PER_PACKET>& seqs);
+          const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>& seqs);
 
   
   MessageType getType() const;
@@ -83,10 +88,10 @@ public:
   const char * serialize() const;
   static Packet deserialize(const char * buffer);
 
-  static constexpr msg_seq_t max_msgs = MAX_MESSAGES_PER_PACKET;
-  static constexpr int32_t pkt_max_size = sizeof(MessageType) + sizeof(uint8_t) +  max_msgs * (sizeof(pkt_seq_t) + sizeof(Message));
-  static constexpr int32_t ack_max_size = sizeof(MessageType) + sizeof(uint8_t) +  max_msgs * (sizeof(pkt_seq_t));
-  static constexpr size_t max_size = ack_max_size > pkt_max_size ? ack_max_size : pkt_max_size;
+  static constexpr size_t max_msgs = MAX_MESSAGES_PER_PACKET;
+  static constexpr size_t pkt_max_size = sizeof(MessageType) + sizeof(uint8_t) +  max_msgs * (sizeof(pkt_seq_t) + Message::max_serialized_size);
+  static constexpr size_t ack_max_size = sizeof(MessageType) + sizeof(uint8_t) +  max_msgs * (sizeof(pkt_seq_t));
+  static constexpr size_t max_serialized_size = ack_max_size > pkt_max_size ? ack_max_size : pkt_max_size;
 
 private:
   MessageType m_type;
@@ -95,7 +100,9 @@ private:
   // sequence numbers and messages for MES packets or sequence numbers for ACK packets
   std::variant<MesPayload, std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>> payload;
 
-  mutable std::array<char, max_size> serialized_buffer;
+
+
+  mutable std::array<char, max_serialized_size> serialized_buffer;
 };
 
 // Helper functions to choose the right conversion based on size

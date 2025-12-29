@@ -5,6 +5,7 @@
 
 #include "globals.hpp"
 #include "maps.hpp"
+#include "message.hpp"
 
 class Node;
 

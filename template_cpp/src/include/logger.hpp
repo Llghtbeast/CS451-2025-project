@@ -18,8 +18,6 @@ public:
   explicit Logger(const std::string &path);
   ~Logger();
 
-  void logBroadcast(msg_seq_t seq);
-  void logDelivery(uint64_t sender_id, msg_seq_t seq);
   void logDecision(std::set<proposal_t>& proposals);
   
   void write();

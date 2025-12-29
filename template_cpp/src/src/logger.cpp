@@ -21,29 +21,6 @@ Logger::~Logger()
   cleanup();
 }
 
-/**
- * Logs a broadcast event with the specified sequence number.
- * @param seq The sequence number of the broadcasted message.
- */
-void Logger::logBroadcast(msg_seq_t seq)
-{
-  std::ostringstream os;
-  os << "b " << seq;
-  enqueueLine(os.str());
-}
-
-/**
- * Logs a delivery event with the specified sender ID and sequence number.
- * @param sender_id The ID of the sender.
- * @param seq The sequence number of the delivered message.
- */
-void Logger::logDelivery(uint64_t sender_id, msg_seq_t seq)
-{
-  std::ostringstream os;
-  os << "d " << sender_id << " " << seq;
-  enqueueLine(os.str());
-}
-
 void Logger::logDecision(std::set<proposal_t>& proposals)
 {
   std::ostringstream os;

@@ -114,7 +114,5 @@ std::vector<T> ConcurrentDeque<T>::snapshot() const
 // ===================== ConcurrentDeque end ===================== //
 
 // Explicit template instantiation
-template class ConcurrentDeque<msg_seq_t>;
 template class ConcurrentDeque<std::pair<pkt_seq_t, Message>>;
-template class ConcurrentDeque<std::pair<msg_seq_t, std::set<proc_id_t>>>;
 template class ConcurrentDeque<std::set<proposal_t>>;

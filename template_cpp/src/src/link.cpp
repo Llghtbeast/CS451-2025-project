@@ -5,12 +5,11 @@ PerfectLink::PerfectLink(int socket, sockaddr_in source_addr, sockaddr_in dest_a
     packet_queue(), pending_pkts(true), delivered_pkts()
 {}
 
-void PerfectLink::enqueueMessage(proc_id_t origin_id, msg_seq_t m_seq)
+void PerfectLink::enqueueMessage(Message msg)
 {
   // Create message
   link_seq++;
-  Message message = Message(m_seq, origin_id);
-  std::pair<pkt_seq_t, Message> messageTuple = std::make_pair(link_seq, message);
+  std::pair<pkt_seq_t, Message> messageTuple = std::make_pair(link_seq, msg);
   
   // Append message to end of message queue
   packet_queue.push_back(messageTuple); 
