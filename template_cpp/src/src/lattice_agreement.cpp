@@ -13,8 +13,61 @@ void LatticeAgreement::reset()
   active_proposal_number = 0;
 }
 
-void LatticeAgreement::processMessage(Message msg, std::string sender_ip_and_port)
+void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port)
 {
+  switch (msg->type)
+  {
+  // Acceptor code
+  case MessageType::MES:
+    if (std::includes(
+      msg->proposed_values.begin(), msg->proposed_values.end(),   // Set proposed by other node
+      accepted_values.begin(), accepted_values.end()))            // Local accepted set
+    {
+      accepted_values.insert(msg->proposed_values.begin(), msg->proposed_values.end());
+      respond(msg, sender_ip_and_port, true);
+    }
+    else
+    {
+      accepted_values.insert(msg->proposed_values.begin(), msg->proposed_values.end());
+      respond(msg, sender_ip_and_port, false);
+    }
+    break;
+
+  // Proposer code
+  case MessageType::ACK:
+    if (msg->round == active_proposal_number)
+    {
+      ack_count++;
+
+      // Check for majority ack
+      if (ack_count >= nb_nodes/2 && active)
+      {
+        active = false;
+        decide();
+      }
+    }
+    break;  
+
+  case MessageType::NACK:
+    if (msg->round == active_proposal_number)
+    {
+      nack_count++;
+      proposed_values.insert(msg->proposed_values.begin(), msg->proposed_values.end());
+
+      // Check for majority response
+      if (nack_count > 0 && (ack_count + nack_count) >= nb_nodes/2 && active)
+      {
+        active_proposal_number++;
+        ack_count = 0;
+        nack_count = 0;
+        
+        broadcastProposal();
+      }
+    }
+    break;  
+  default:
+    break;  
+  }
 }
 
 void LatticeAgreement::propose(std::set<proposal_t> proposal)
@@ -22,16 +75,35 @@ void LatticeAgreement::propose(std::set<proposal_t> proposal)
   proposed_values = std::move(proposal);
   active = true;
   
-  // Create message
-  Message msg();
-
-  parent->broadcast();
+  broadcastProposal();
 }
 
 void LatticeAgreement::waitUntilDecided()
 {
+  std::unique_lock<std::mutex> lock(decision_mutex);
+  decision_cv.wait(lock, [this]() { return decided; });
+}
+
+void LatticeAgreement::broadcastProposal()
+{
+  // Create message
+  auto msg_ptr = std::make_shared<Message>(MessageType::MES, active_proposal_number, proposed_values);
+  parent->broadcast(msg_ptr);
+}
+
+void LatticeAgreement::respond(std::shared_ptr<const Message> msg, std::string sender_ip_and_port, bool acknowledge)
+{
+  // Create response
+  auto response = acknowledge ? msg->toAck() : msg->toNack(accepted_values);
+  parent->sendTo(std::make_shared<Message>(std::move(response)), sender_ip_and_port);
 }
 
 void LatticeAgreement::decide()
 {
+  std::lock_guard<std::mutex> lock(decision_mutex);
+  if (decided) return;
+
+  decided = true;
+  active = false;
+  decision_cv.notify_one();
 }

@@ -107,7 +107,7 @@ void Node::propose(std::set<proposal_t> proposal)
 }
 
 // Private methods:
-void Node::broadcast(Message msg)
+void Node::broadcast(std::shared_ptr<Message> msg)
 {
   // Enqueue message on all perfect links
   for (auto &pair: links) {
@@ -115,6 +115,11 @@ void Node::broadcast(Message msg)
     pair.second->enqueueMessage(msg);
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(BROADCAST_COOLDOWN_MS));
+}
+
+void Node::sendTo(std::shared_ptr<Message> msg, std::string dest)
+{
+  links[dest]->enqueueMessage(msg);
 }
 
 void Node::send()
@@ -170,22 +175,13 @@ void Node::listen()
     // if an ACK was received, so skip delivery processing
     if (pkt.getType() == MessageType::ACK) continue;
 
-    std::array<Message, MAX_MESSAGES_PER_PACKET> msgs = pkt.getMessages();
+    std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET> msgs = pkt.getMessages();
     // Deliver message
     for (size_t i = 0; i < pkt.getNbMes(); i++) {
       // If message was already received, SKIP
       // std::cout << "received_msgs[" << i << "] = " << received_msgs[i] << "\n";
       if (!received_msgs[i]) continue;
             
-      // If message has already been delivered, SKIP
-      // if (delivered_messages[msgs[i].origin].contains(msgs[i].seq)) continue;
-      
-      // Log delivery
-      // logger->logDelivery(msgs[i].origin, msgs[i].seq);
-
-      // add message to delivered set
-      // delivered_messages[msgs[i].origin].insert(msgs[i].seq);
-
       lattice_agreement.processMessage(msgs[i], sender_ip_and_port);
     }
   }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <stdint.h>
 #include <set>
 
@@ -22,7 +23,7 @@ public:
   /**
    * Process message from other node
    */
-  void processMessage(Message msg, std::string sender_ip_and_port);
+  void processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port);
 
   /**
    * Propose a proposal
@@ -36,6 +37,16 @@ public:
 
 private:
   /**
+   * Create message and broadcast
+   */
+  void broadcastProposal();
+
+  /**
+   * Respond to sender with ACK or NACK
+   */
+  void respond(std::shared_ptr<const Message> msg, std::string sender_ip_and_port, bool acknoledge);
+
+  /**
    * Decide on a set of values (unblocks waitUntilDecided)
    */
   void decide();
@@ -48,8 +59,13 @@ private:
   uint32_t active_proposal_number = 0;
   std::set<proposal_t> proposed_values;
 
-  ConcurrentMap<uint32_t, std::set<proc_id_t>> acks_received;
-  ConcurrentMap<uint32_t, std::set<proc_id_t>> nacks_received;
+  bool decided = false;
+  std::mutex decision_mutex;
+  std::condition_variable decision_cv;
+
+  // Are these needed?
+  // ConcurrentMap<uint32_t, std::set<proc_id_t>> acks_received;
+  // ConcurrentMap<uint32_t, std::set<proc_id_t>> nacks_received;
 
   // Acceptor
   std::set<proposal_t> accepted_values;

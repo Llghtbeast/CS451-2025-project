@@ -39,7 +39,7 @@ class PerfectLink {
    * Enqueues a packet to be sent later.
    * @param msg Message to be enqueued
    */
-  void enqueueMessage(Message msg);
+  void enqueueMessage(std::shared_ptr<Message> msg);
   
   /**
   * Send the first enqueued packets.
@@ -63,8 +63,8 @@ private:
   // Sending
   pkt_seq_t link_seq = 0;
   
-  ConcurrentDeque<std::pair<pkt_seq_t, Message>> packet_queue;
-  ConcurrentMap<pkt_seq_t, Message> pending_pkts;
+  ConcurrentDeque<std::pair<pkt_seq_t, std::shared_ptr<Message>>> packet_queue;
+  ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>> pending_pkts;
   
   // Reception
   SlidingSet<pkt_seq_t> delivered_pkts;

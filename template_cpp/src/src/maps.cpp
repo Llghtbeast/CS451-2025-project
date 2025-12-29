@@ -158,8 +158,8 @@ template bool ConcurrentMap<uint32_t, std::set<proc_id_t>>::add_to_mapped_set<pr
 // Used in link.hpp
 // Explicit instantiation for ConcurrentMap<pkt_seq_t, Message>
 // Only instantiate the methods actually used for this type
-template ConcurrentMap<pkt_seq_t, Message>::ConcurrentMap(bool);
-template bool ConcurrentMap<pkt_seq_t, Message>::empty() const;
-template std::pair<std::array<ConcurrentMap<pkt_seq_t, Message>::value_type, ConcurrentMap<pkt_seq_t, Message>::max_size>, size_t>
-  ConcurrentMap<pkt_seq_t, Message>::complete(ConcurrentDeque<std::pair<pkt_seq_t, Message>>&);
-template void ConcurrentMap<pkt_seq_t, Message>::erase(const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>&);
+template ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>>::ConcurrentMap(bool);
+template bool ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>>::empty() const;
+template std::pair<std::array<ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>>::value_type, ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>>::max_size>, size_t>
+  ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>>::complete(ConcurrentDeque<std::pair<pkt_seq_t, std::shared_ptr<Message>>>&);
+template void ConcurrentMap<pkt_seq_t, std::shared_ptr<Message>>::erase(const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>&);

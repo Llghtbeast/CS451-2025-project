@@ -5,11 +5,11 @@ PerfectLink::PerfectLink(int socket, sockaddr_in source_addr, sockaddr_in dest_a
     packet_queue(), pending_pkts(true), delivered_pkts()
 {}
 
-void PerfectLink::enqueueMessage(Message msg)
+void PerfectLink::enqueueMessage(std::shared_ptr<Message> msg)
 {
   // Create message
   link_seq++;
-  std::pair<pkt_seq_t, Message> messageTuple = std::make_pair(link_seq, msg);
+  std::pair<pkt_seq_t, std::shared_ptr<Message>> messageTuple = std::make_pair(link_seq, msg);
   
   // Append message to end of message queue
   packet_queue.push_back(messageTuple); 
@@ -27,7 +27,7 @@ void PerfectLink::send()
   // std::cout << "packet_queue size: " << packet_queue.size() << ", pending_messages size: " << pending_pkts.size() << std::endl;
   for (size_t i = 0; i < window_size; i++) {
     std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs;
-    std::array<Message, MAX_MESSAGES_PER_PACKET> msgs;
+    std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET> msgs;
 
     uint8_t count = 0;
     for (; count < Packet::max_msgs && it < size; count++, it++) {

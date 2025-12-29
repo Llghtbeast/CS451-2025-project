@@ -2,22 +2,13 @@
 
 // =================== Message implementation =================== 
 Message::Message(MessageType type, prop_nb_t round, const std::set<proposal_t>& proposal_set)
-  : type(type), round(round)
-{
-  set_size = static_cast<uint16_t>(proposal_set.size());
-  if (set_size > MAX_PROPOSAL_SET_SIZE) throw std::runtime_error("Constructor set size exceeds maximum proposal set size");
-
-  size_t i = 0;
-  for (const auto& value: proposal_set)
-  {
-    proposed_values[i++] = value;
-  }
-}
+  : type(type), round(round), proposed_values(proposal_set.begin(), proposal_set.end())
+{}
 
 bool Message::operator==(const Message &other) const
 {
-  if (set_size != other.set_size) return false;
-  for (size_t i = 0; i < set_size; i++)
+  if (proposed_values.size() != other.proposed_values.size()) return false;
+  for (size_t i = 0; i < proposed_values.size(); i++)
   {
     if (proposed_values[i] != other.proposed_values[i]) return false;
   }
@@ -25,22 +16,32 @@ bool Message::operator==(const Message &other) const
   return (type == other.type) && (round == other.round);
 }
 
-void Message::displayMessage(const Message& msg)
+Message Message::toAck() const
+{
+  return Message(MessageType::ACK, round, {});
+}
+
+Message Message::toNack(std::set<proposal_t>& completed_proposal_set) const
+{
+  return Message(MessageType::NACK, round, completed_proposal_set);
+}
+
+void Message::displayMessage() const
 {
   std::cout << "Message: ";
-  std::cout << "type=" << msg.type << ", ";
-  std::cout << "round=" << msg.round << ", ";
+  std::cout << "type=" << type << ", ";
+  std::cout << "round=" << round << ", ";
   std::cout << "proposed_values = {";
-  for (size_t i = 0; i < msg.set_size; i++)
+  for (const auto& value: proposed_values)
   {
-    std::cout << " " << msg.proposed_values[i];
+    std::cout << " " << value;
   }
   std::cout << "\n";
 }
 
 size_t Message::serializedSize() const
 {
-  return sizeof(type) + sizeof(round) + sizeof(set_size) + sizeof(proposal_t) * set_size;
+  return sizeof(type) + sizeof(round) + sizeof(proposal_t) * proposed_values.size();
 }
 
 void Message::serializeTo(char *buffer, size_t &offset) const
@@ -55,12 +56,13 @@ void Message::serializeTo(char *buffer, size_t &offset) const
   offset += sizeof(round_network);
   
   // serialize message proposal set size and values
-  uint16_t set_size_network = convertToNetwork(set_size);
+  uint16_t set_size_network = convertToNetwork(static_cast<uint16_t>(proposed_values.size()));
   std::memcpy(buffer + offset, &set_size_network, sizeof(set_size_network));
   offset += sizeof(set_size_network);
-  for (size_t i = 0; i < set_size; i++)
+
+  for (const auto& value: proposed_values)
   {
-    proposal_t prop_network = convertToNetwork(proposed_values[i]);
+    proposal_t prop_network = convertToNetwork(value);
     std::memcpy(buffer + offset, &prop_network, sizeof(prop_network));
     offset += sizeof(prop_network);
   }
@@ -69,28 +71,29 @@ void Message::serializeTo(char *buffer, size_t &offset) const
 Message Message::deserialize(const char *buffer, size_t &offset)
 {
   Message msg;
-  prop_nb_t round_network;
-  uint16_t set_size_network;
   
   std::memcpy(&msg.type, buffer + offset, sizeof(msg.type));
   offset += sizeof(msg.type);
-
+  
+  prop_nb_t round_network;
   std::memcpy(&round_network, buffer + offset, sizeof(round_network));
   offset += sizeof(round_network);
   msg.round = convertFromNetwork(round_network);
   
   // Deserialize to proposed_values
+  uint16_t set_size_network;
   std::memcpy(&set_size_network, buffer + offset, sizeof(set_size_network));
   offset += sizeof(set_size_network);
-  msg.set_size = convertFromNetwork(set_size_network);
-  if (msg.set_size > MAX_PROPOSAL_SET_SIZE) throw std::runtime_error("Deserilized set size exceeds maximum proposal set size");
+  uint16_t set_size = convertFromNetwork(set_size_network);
+  msg.proposed_values.reserve(set_size);
+  if (set_size > MAX_PROPOSAL_SET_SIZE) throw std::runtime_error("Deserilized set size exceeds maximum proposal set size");
 
-  for (size_t i = 0; i < msg.set_size; i++)
+  for (size_t i = 0; i < set_size; i++)
   {
     proposal_t prop_network;
     std::memcpy(&prop_network, buffer + offset, sizeof(prop_network));
     offset += sizeof(prop_network);
-    msg.proposed_values[i] = convertFromNetwork(prop_network);
+    msg.proposed_values.push_back(convertFromNetwork(prop_network));
   }
 
   return msg;
@@ -100,7 +103,7 @@ Message Message::deserialize(const char *buffer, size_t &offset)
 // Constructor for MES
 Packet::Packet(MessageType type, uint8_t nb_m,
                 const std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET>& seqs,
-                const std::array<Message, MAX_MESSAGES_PER_PACKET>& msgs)
+                const std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET>& msgs)
     : m_type(type), nb_mes(nb_m), payload(MesPayload{seqs, msgs})
 {
   assert(type == MessageType::MES); 
@@ -118,7 +121,7 @@ Packet::Packet(MessageType type, uint8_t nb_m,
 MessageType Packet::getType() const  { return m_type; }
 uint8_t Packet::getNbMes() const     { return nb_mes; }
 
-const std::array<Message, MAX_MESSAGES_PER_PACKET>& Packet::getMessages() const 
+const std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET>& Packet::getMessages() const 
 {
   assert(m_type == MessageType::MES);
   return std::get<0>(payload).msgs;
@@ -151,7 +154,7 @@ size_t Packet::serializedSize() const
     auto& data = std::get<0>(payload);
     for (size_t i = 0; i < nb_mes; i++)
     {
-      size += sizeof(pkt_seq_t) + data.msgs[i].serializedSize();
+      size += sizeof(pkt_seq_t) + data.msgs[i]->serializedSize();
     }
   } else if (m_type == ACK) {
     size += nb_mes * sizeof(pkt_seq_t);
@@ -170,7 +173,7 @@ void Packet::displayPacket()
     for (size_t i = 0; i < nb_mes; i++)
     {
       std::cout << "    pkt_seq: " << data.seqs[i] << " ";
-      Message::displayMessage(data.msgs[i]);
+      data.msgs[i]->displayMessage();
     }
   }
   else
@@ -215,7 +218,7 @@ const char* Packet::serialize() const {
       offset += sizeof(pkt_network);
       
       // serialize message
-      data.msgs[i].serializeTo(serialized_buffer.data(), offset);
+      data.msgs[i]->serializeTo(serialized_buffer.data(), offset);
     }
   }
   else
@@ -232,7 +235,7 @@ const char* Packet::serialize() const {
   return serialized_buffer.data();
 }
 
-Packet Packet::deserialize(const char* buffer) {
+Packet Packet::deserialize(const char* buffer) {  
   size_t offset = 0;
   
   // STEP 1: Read type (1 byte)
@@ -240,11 +243,12 @@ Packet Packet::deserialize(const char* buffer) {
   
   // STEP 2: Read nb_mes (1 byte)
   uint8_t nb = static_cast<uint8_t>(buffer[offset++]);
+  if (nb >= MAX_MESSAGES_PER_PACKET) throw std::runtime_error("Maximum message per packet bound exceeded in deserialization");
   
   if (type == MessageType::MES) 
   {
     std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs;
-    std::array<Message, MAX_MESSAGES_PER_PACKET> msgs;
+    std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET> msgs;
 
     for (uint8_t i = 0; i < nb; ++i) {
       pkt_seq_t pkt;
@@ -255,7 +259,7 @@ Packet Packet::deserialize(const char* buffer) {
       offset += sizeof(pkt_network);
 
       seqs[i] = convertFromNetwork(pkt_network);
-      msgs[i] = Message::deserialize(buffer, offset);
+      msgs[i] = std::make_shared<Message>(Message::deserialize(buffer, offset));
     }
 
     return Packet(MES, nb, seqs, msgs);

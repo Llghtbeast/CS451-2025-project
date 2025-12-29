@@ -37,7 +37,7 @@ public:
    * @param receiver_id The unique identifier for the network's receiver node.
    * @param outputPath The path to the output file where messages will be logged.
    */
-  Node::Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath, uint32_t ds);
+  Node(std::vector<Parser::Host> nodes, proc_id_t id, std::string outputPath, uint32_t ds);
   
   // Destructor
   ~Node();
@@ -69,14 +69,14 @@ private:
    * Enqueues a message to be broadcast
    * @param msg Message to broadcast
    */
-  void broadcast(Message msg);
+  void broadcast(std::shared_ptr<Message> msg);
 
   /**
    * Enqueues a message to be sent to a specific destination
    * @param msg Message to be sent
    * @param dest Destination to send the message
    */
-  void sendTo(Message msg, std::string dest);
+  void sendTo(std::shared_ptr<Message> msg, std::string dest);
 
   /**
    * Packet sending loop that continuously sends messages to the specified destination address while the run flag is set.

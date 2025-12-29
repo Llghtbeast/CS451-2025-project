@@ -103,7 +103,7 @@ int main(int argc, char **argv) {
   std::cout << "Creating nodes for lattice agreement (p=" << shots << ", vs=" << vs << ", ds=" << ds << ")\n" << std::endl;
 
   // Create node
-  Node node(hosts, parser.id(), parser.outputPath());
+  Node node(hosts, parser.id(), parser.outputPath(), ds);
   p_node = &node;
 
   try {
