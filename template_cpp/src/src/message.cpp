@@ -29,14 +29,14 @@ Message Message::toNack(std::set<proposal_t>& completed_proposal_set) const
 void Message::displayMessage() const
 {
   std::cout << "Message: ";
-  std::cout << "type=" << type << ", ";
-  std::cout << "round=" << round << ", ";
+  std::cout << "type=" << static_cast<int>(type) << ", ";
+  std::cout << "round=" << static_cast<int>(round) << ", ";
   std::cout << "proposed_values = {";
   for (const auto& value: proposed_values)
   {
     std::cout << " " << value;
   }
-  std::cout << "\n";
+  std::cout << " }\n";
 }
 
 size_t Message::serializedSize() const
@@ -243,7 +243,7 @@ Packet Packet::deserialize(const char* buffer) {
   
   // STEP 2: Read nb_mes (1 byte)
   uint8_t nb = static_cast<uint8_t>(buffer[offset++]);
-  if (nb >= MAX_MESSAGES_PER_PACKET) throw std::runtime_error("Maximum message per packet bound exceeded in deserialization");
+  if (nb > MAX_MESSAGES_PER_PACKET) throw std::runtime_error("Maximum message per packet bound exceeded in deserialization");
   
   if (type == MessageType::MES) 
   {

@@ -12,27 +12,34 @@ static void testPacketSerialization() {
   proc_id_t origin_id = 123456789;
   uint8_t nb_mes = 8;
   std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs = {1, 2, 3, 4, 5, 6, 7, 8};
-  std::array<Message, MAX_MESSAGES_PER_PACKET> msgs = {Message(10, origin_id),
-                                                        Message(20, origin_id),
-                                                        Message(30, origin_id),
-                                                        Message(40, origin_id),
-                                                        Message(50, origin_id),
-                                                        Message(60, origin_id),
-                                                        Message(70, origin_id),
-                                                        Message(80, origin_id)};
+  std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET> msgs = {
+    std::make_shared<Message>(MessageType::MES, 1, std::set<proposal_t>({ 1, 2, 3 })),
+    std::make_shared<Message>(MessageType::MES, 2, std::set<proposal_t>({ 1, 2 })),
+    std::make_shared<Message>(MessageType::ACK, 3, std::set<proposal_t>({})),
+    std::make_shared<Message>(MessageType::NACK, 4, std::set<proposal_t>({ 2, 4, 5 })),
+    std::make_shared<Message>(MessageType::MES, 5, std::set<proposal_t>({ 1, 2, 3, 4, 5})),
+    std::make_shared<Message>(MessageType::NACK, 6, std::set<proposal_t>({ 2})),
+    std::make_shared<Message>(MessageType::ACK, 7, std::set<proposal_t>({})),
+    std::make_shared<Message>(MessageType::ACK, 8, std::set<proposal_t>({}))
+  };
   Packet msg(MES, nb_mes, seqs, msgs);
   msg.displayPacket();  
 
   const char* serialized = msg.serialize();
   Packet::displaySerialized(serialized);
-  Packet deserialized_msg = Packet::deserialize(serialized);
+  Packet deserialized_pkt = Packet::deserialize(serialized);
 
-  deserialized_msg.displayPacket();  
+  deserialized_pkt.displayPacket();  
 
-  IS_TRUE(deserialized_msg.getType() == MES);
-  IS_TRUE(deserialized_msg.getNbMes() == nb_mes);
-  IS_TRUE(deserialized_msg.getSeqs() == seqs);
-  IS_TRUE(deserialized_msg.getMessages() == msgs);
+  IS_TRUE(deserialized_pkt.getType() == MES);
+  IS_TRUE(deserialized_pkt.getNbMes() == nb_mes);
+  IS_TRUE(deserialized_pkt.getSeqs() == seqs);
+
+  auto deserialized_msgs = deserialized_pkt.getMessages();
+  for (size_t i = 0; i < nb_mes; i++)
+  {
+    IS_TRUE(*deserialized_msgs[i] == *msgs[i]);
+  }
 }
 
 int main() {
