@@ -11,6 +11,9 @@ void LatticeAgreement::reset()
   ack_count = 0;
   nack_count = 0;
   active_proposal_number = 0;
+
+  decided = false;
+  accepted_values = {};
 }
 
 void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port)
@@ -72,7 +75,9 @@ void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::s
 
 void LatticeAgreement::propose(std::set<proposal_t> proposal)
 {
-  proposed_values = std::move(proposal);
+  proposed_values = proposal;
+  accepted_values = std::move(proposal);
+  ack_count++;
   active = true;
   
   broadcastProposal();
@@ -103,7 +108,16 @@ void LatticeAgreement::decide()
   std::lock_guard<std::mutex> lock(decision_mutex);
   if (decided) return;
 
+  std::cout << "Decided set { ";
+  for (const auto& value: proposed_values)
+  {
+    std::cout << value << " ";
+  }
+  std::cout << "}\n";
+
   decided = true;
   active = false;
+  parent->logger->logDecision(proposed_values);
+
   decision_cv.notify_one();
 }

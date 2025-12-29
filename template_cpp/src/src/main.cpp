@@ -100,14 +100,12 @@ int main(int argc, char **argv) {
     throw std::invalid_argument("Error parsing integers from config file");
   }
   
-  std::cout << "Creating nodes for lattice agreement (p=" << shots << ", vs=" << vs << ", ds=" << ds << ")\n" << std::endl;
-
   // Create node
+  std::cout << "Creating nodes for lattice agreement (p=" << shots << ", vs=" << vs << ", ds=" << ds << ")\n" << std::endl;
   Node node(hosts, parser.id(), parser.outputPath(), ds);
   p_node = &node;
 
   try {
-
     // Start node (sending, listening and logging)
     node.start();
     std::cout << "Node started successfully.\n" << std::endl;
@@ -117,8 +115,24 @@ int main(int argc, char **argv) {
         
     // Start enqueueing messages if this is a sender
     for (size_t i = 0; i < shots; i++) {
-      // Try to broadcast message with this node's id as origin, if queue is full yield to other threads and retry
-      node.propose({});
+      std::string line;
+      if (!std::getline(configFile, line)) {
+        std::ostringstream os;
+        os << "`" << parser.configPath() << "` file empty or error handling file";
+        throw std::invalid_argument(os.str());
+      }
+      std::istringstream line_stream(line);
+
+      // Create proposal set
+      std::set<proposal_t> proposal;
+      proposal_t element;
+      while (line_stream >> element)
+      {
+        proposal.insert(element); 
+      }
+      
+      // Propose to node
+      node.propose(std::move(proposal));
     }
   
     std::cout << "All messages enqueued.\n" << std::endl;

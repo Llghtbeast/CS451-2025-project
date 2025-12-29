@@ -102,6 +102,13 @@ void Node::terminate()
 
 void Node::propose(std::set<proposal_t> proposal)
 {
+  std::cout << "Proposing { ";
+  for (const auto& value: proposal)
+  {
+    std::cout << value << " ";
+  }
+  std::cout << "}\n";
+
   proposal_queue.push_back(proposal);
   std::this_thread::sleep_for(std::chrono::milliseconds(PROPOSAL_TIMEOUT_MS));
 }
@@ -109,9 +116,10 @@ void Node::propose(std::set<proposal_t> proposal)
 // Private methods:
 void Node::broadcast(std::shared_ptr<Message> msg)
 {
+  std::cout << "Broadcast message " << msg.get() << "\n";
   // Enqueue message on all perfect links
-  for (auto &pair: links) {
-    // std::cout << "enqueuing message to " << pair.first << ": (" << origin_id << ", "<< seq << ")" << std::endl;
+  for (auto &pair: links)
+  {
     pair.second->enqueueMessage(msg);
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(BROADCAST_COOLDOWN_MS));
@@ -167,7 +175,7 @@ void Node::listen()
     // std::cout << "message received from " << sender_ip_and_port << "" << std::endl;
 
     Packet pkt = Packet::deserialize(buffer.data());
-    // pkt.displayPacket();
+    pkt.displayPacket();
   
     // Process message through perfect link -> extract new received messages
     std::array<bool, MAX_MESSAGES_PER_PACKET> received_msgs = links[sender_ip_and_port]->receive(pkt);
@@ -204,6 +212,7 @@ void Node::processLatticeAgreement()
   while (runFlag.load())
   {
     // Check queue for proposals, if empty, SLEEP and CONTINUE
+    if (proposal_queue.empty()) continue;
 
     // Pop the first proposal from queue.
     auto proposal = proposal_queue.pop_front();
