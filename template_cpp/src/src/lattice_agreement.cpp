@@ -15,17 +15,17 @@ bool LatticeAgreementInstance::processMessage(std::shared_ptr<const Message> msg
   {
   // Acceptor code
   case MessageType::MES:
-    std::cout << "msg proposal set: { ";
-    for (const auto& value: msg->proposed_values)
-    {
-      std::cout << value << " ";
-    }
-    std::cout << "}\naccepted set: { ";
-    for (const auto& value: accepted_values)
-    {
-      std::cout << value << " ";
-    }
-    std::cout << "}\n";
+    // std::cout << "msg proposal set: { ";
+    // for (const auto& value: msg->proposed_values)
+    // {
+    //   std::cout << value << " ";
+    // }
+    // std::cout << "}\naccepted set: { ";
+    // for (const auto& value: accepted_values)
+    // {
+    //   std::cout << value << " ";
+    // }
+    // std::cout << "}\n";
 
 
     if (std::includes(
@@ -72,9 +72,10 @@ bool LatticeAgreementInstance::processMessage(std::shared_ptr<const Message> msg
         ack_count = 0;
         nack_count = 0;
 
-        // Update own proposal based on accepted_values
+        // Update own proposal based on accepted_values (msg's proposal already added before)
+        // Optimization to avoid sending set nacked by self
         updateProposal();
-        std::cout << "Proposal updated, broadcasting\n";
+        // std::cout << "Proposal updated, broadcasting\n";
         broadcastProposal();
 
         // Check for majority ack (1 or 2 process case)
@@ -102,10 +103,12 @@ void LatticeAgreementInstance::propose(std::set<proposal_t> proposal)
 
   has_proposal = true;
   active = true;
+  
   // Merge proposal with accepted_values to accept or reject its own proposal
   proposed_values = std::move(proposal);
   updateProposal();
-
+  
+  // TODO: check if rebroadcast is  necessary (proposal contained in accepted set)
   broadcastProposal();
 }
 
@@ -113,12 +116,12 @@ void LatticeAgreementInstance::waitUntilDecidedOrTerminated()
 {
   std::unique_lock<std::mutex> lock(decision_mutex);
   decision_cv.wait(lock, [this]{ return decided || terminated; });
-  std::cout << "LatticeAgreementInstance " << instance_id << " exited wait\n";
+  // std::cout << "LatticeAgreementInstance " << instance_id << " exited wait\n";
 }
 
 void LatticeAgreementInstance::terminate()
 {
-  std::cout << "LatticeAgreementInstance " << instance_id << " terminated\n";
+  // std::cout << "LatticeAgreementInstance " << instance_id << " terminated\n";
   terminated = true;
   decision_cv.notify_all();
 }
@@ -144,12 +147,12 @@ void LatticeAgreementInstance::decide()
   if (decided) return;
   if (!has_proposal) return;
 
-  std::cout << "Decided set { ";
-  for (const auto& value: proposed_values)
-  {
-    std::cout << value << " ";
-  }
-  std::cout << "}\n\n";
+  // std::cout << "Decided set { ";
+  // for (const auto& value: proposed_values)
+  // {
+  //   std::cout << value << " ";
+  // }
+  // std::cout << "}\n\n";
 
   decided = true;
   active = false;
@@ -161,9 +164,11 @@ void LatticeAgreementInstance::decide()
 void LatticeAgreementInstance::updateProposal()
 {
   proposed_values.insert(accepted_values.begin(), accepted_values.end());
+
+  // Accept own proposal
   accepted_values = proposed_values;
-  acknowledgements_sent=1;
-  ack_count++;
+  acknowledgements_sent = 1;
+  ack_count = 1;
 }
 
 // Multi-shot Lattice agreement object
@@ -175,8 +180,8 @@ void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::s
 {
   std::lock_guard<std::mutex> lock(la_manager_mutex);
   
-  std::cout << "processing message from " << sender_ip_and_port << ": ";
-  msg.get()->displayMessage();
+  // std::cout << "processing message from " << sender_ip_and_port << ": ";
+  // msg.get()->displayMessage();
 
   tryAddingInstance(msg->instance);
 
@@ -184,6 +189,7 @@ void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::s
   bool destroy_instance = instances[msg->instance]->processMessage(msg, sender_ip_and_port);
   if (destroy_instance)
   {
+    std::cout << "Destroying LA instance " << msg->instance << ", all processes have decided for that instance\n";
     instances.erase(msg->instance);
   }
 }
@@ -192,12 +198,12 @@ void LatticeAgreement::propose(prop_nb_t instance_id, std::set<proposal_t> propo
 {
   std::lock_guard<std::mutex> lock(la_manager_mutex);
 
-  std::cout << "Proposing (instance " << instance_id << "): { ";
-  for (const auto& value: proposal)
-  {
-    std::cout << value << " ";
-  }
-  std::cout << "}\n";
+  // std::cout << "Proposing (instance " << instance_id << "): { ";
+  // for (const auto& value: proposal)
+  // {
+  //   std::cout << value << " ";
+  // }
+  // std::cout << "}\n";
 
   tryAddingInstance(instance_id);
   // add proposal

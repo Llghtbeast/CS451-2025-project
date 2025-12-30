@@ -98,13 +98,13 @@ void Node::terminate()
 
   // join threads (wait for loops to exit)
   if (sender_thread.joinable()) sender_thread.join();
-  std::cout << "Sender thread joined" << std::endl;
+  // std::cout << "Sender thread joined" << std::endl;
   if (listener_thread.joinable()) listener_thread.join();
-  std::cout << "Listener thread joined" << std::endl;
+  // std::cout << "Listener thread joined" << std::endl;
   if (logger_thread.joinable()) logger_thread.join();
-  std::cout << "Logger thread joined" << std::endl;
+  // std::cout << "Logger thread joined" << std::endl;
   if (lattice_agreement_processor_thread.joinable()) lattice_agreement_processor_thread.join();
-  std::cout << "lattice_agreement_processor_thread thread joined" << std::endl;
+  // std::cout << "lattice_agreement_processor_thread thread joined" << std::endl;
 }
 
 void Node::propose(std::set<proposal_t>&& proposal)
@@ -117,8 +117,8 @@ void Node::propose(std::set<proposal_t>&& proposal)
 // Private methods:
 void Node::broadcast(std::shared_ptr<Message> msg)
 {
-  std::cout << "Broadcast message ";
-  msg.get()->displayMessage();
+  // std::cout << "Broadcast message ";
+  // msg.get()->displayMessage();
   
   // Enqueue message on all perfect links
   for (auto &pair: links)
@@ -130,9 +130,9 @@ void Node::broadcast(std::shared_ptr<Message> msg)
 
 void Node::sendTo(std::shared_ptr<Message> msg, std::string dest)
 {
-  std::cout << "Sending message ";
-  msg.get()->displayMessage();
-  std::cout << " to " << dest << "\n";
+  // std::cout << "Sending message ";
+  // msg.get()->displayMessage();
+  // std::cout << " to " << dest << "\n";
   
   links[dest]->enqueueMessage(msg);
 }

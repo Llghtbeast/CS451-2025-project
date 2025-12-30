@@ -98,11 +98,14 @@ class LatticeAgreementValidator:
         results = {"Validity": True, "Consistency": True, "Termination": True}
         
         for shot in range(self.num_shots):
-            print(f"--- Validating Shot {shot + 1}/{self.num_shots} ---")
+            # print(f"--- Validating Shot {shot + 1}/{self.num_shots} ---")
             
             v_errors = self.verify_la1_validity(shot)
             c_errors = self.verify_la2_consistency(shot)
             t_errors = self.verify_la3_termination(shot)
+
+            if v_errors or c_errors or t_errors:
+                print(f"    Shot {shot+1}/{self.num_shots} failed validation:")
 
             if v_errors:
                 results["Validity"] = False
@@ -115,9 +118,6 @@ class LatticeAgreementValidator:
             if t_errors:
                 results["Termination"] = False
                 for e in t_errors[:3]: print(f"  [LA3 FAIL] {e}")
-
-            if not (v_errors or c_errors or t_errors):
-                print("  All properties satisfied for this shot.")
 
         print("\nFINAL SUMMARY")
         print("=" * 30)
