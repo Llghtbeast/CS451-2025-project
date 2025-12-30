@@ -9,7 +9,7 @@ LatticeAgreementInstance::LatticeAgreementInstance(size_t nb_nodes, uint32_t ds,
 bool LatticeAgreementInstance::processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port)
 {
   // Lock to avoid processing a message at the same time as resetting and proposing
-  std::unique_lock<std::mutex> lock(la_mutex);
+  std::lock_guard<std::mutex> lock(la_mutex);
   
   switch (msg->type)
   {
@@ -50,7 +50,7 @@ bool LatticeAgreementInstance::processMessage(std::shared_ptr<const Message> msg
       ack_count++;
 
       // Check for majority ack
-      if (ack_count >= nb_nodes/2 && active)
+      if (ack_count > (nb_nodes-1)/2 && active)
       {
         active = false;
         decide();
@@ -79,7 +79,7 @@ bool LatticeAgreementInstance::processMessage(std::shared_ptr<const Message> msg
         broadcastProposal();
 
         // Check for majority ack (1 or 2 process case)
-        if (ack_count >= nb_nodes/2 && active)
+        if (ack_count > (nb_nodes-1)/2 && active)
         {
           active = false;
           decide();
