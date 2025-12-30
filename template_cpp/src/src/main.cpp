@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
       node.propose(std::move(proposal));
     }
   
-    std::cout << "All messages enqueued.\n" << std::endl;
+    std::cout << "All proposals enqueued.\n" << std::endl;
     
     // node.finished(setupIpAddress(parser.hosts()[recv_id - 1]));
     

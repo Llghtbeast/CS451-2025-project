@@ -1,44 +1,50 @@
 #include "lattice_agreement.hpp"
 #include "node.hpp"
 
-LatticeAgreement::LatticeAgreement(size_t nb_nodes, uint32_t ds, Node *p)
-  : nb_nodes(nb_nodes), distinct_values(ds), parent(p)
+// Single-shot Lattice agreement object
+LatticeAgreementInstance::LatticeAgreementInstance(size_t nb_nodes, uint32_t ds, Node *p, prop_nb_t instance_id)
+  : instance_id(instance_id), nb_nodes(nb_nodes), distinct_values(ds), parent(p)
 {}
 
-void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port)
+bool LatticeAgreementInstance::processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port)
 {
   // Lock to avoid processing a message at the same time as resetting and proposing
-  std::lock_guard<std::mutex> lock(la_mutex);
+  std::unique_lock<std::mutex> lock(la_mutex);
   
-  std::cout << "processing message: ";
-  msg.get()->displayMessage();
-
   switch (msg->type)
   {
   // Acceptor code
   case MessageType::MES:
-    // Ensure accepted_values is properly sized for this instance
-    if (active_instance_number < msg->instance)
-    
-    if (std::includes(
-      msg->proposed_values.begin(), msg->proposed_values.end(),                             // Set proposed by other node
-      accepted_values[msg->instance-1].begin(), accepted_values[msg->instance-1].end()))    // Local accepted set
+    std::cout << "msg proposal set: { ";
+    for (const auto& value: msg->proposed_values)
     {
-      accepted_values[msg->instance-1].insert(msg->proposed_values.begin(), msg->proposed_values.end());
+      std::cout << value << " ";
+    }
+    std::cout << "}\naccepted set: { ";
+    for (const auto& value: accepted_values)
+    {
+      std::cout << value << " ";
+    }
+    std::cout << "}\n";
+
+
+    if (std::includes(
+      msg->proposed_values.begin(), msg->proposed_values.end(),   // Set proposed by other node
+      accepted_values.begin(), accepted_values.end()))            // Local accepted set
+    {
+      accepted_values.insert(msg->proposed_values.begin(), msg->proposed_values.end());
       respond(msg, sender_ip_and_port, true);
+      acknowledgements_sent++;
     }
     else
     {
-      accepted_values[msg->instance-1].insert(msg->proposed_values.begin(), msg->proposed_values.end());
+      accepted_values.insert(msg->proposed_values.begin(), msg->proposed_values.end());
       respond(msg, sender_ip_and_port, false);
     }
-    return;
+    break;
 
   // Proposer code
   case MessageType::ACK:
-    // If the message corresponds to a different lattice agreement instance, skip
-    if (active_instance_number != msg->instance) return;
-
     if (msg->round == active_proposal_number)
     {
       ack_count++;
@@ -50,12 +56,9 @@ void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::s
         decide();
       }
     }
-    return;  
+    break;  
 
   case MessageType::NACK:
-    // If the message corresponds to a different lattice agreement instance, skip
-    if (active_instance_number != msg->instance) return;
-
     if (msg->round == active_proposal_number)
     {
       nack_count++;
@@ -70,78 +73,76 @@ void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::s
         nack_count = 0;
 
         // Update own proposal based on accepted_values
-        proposed_values.insert(accepted_values[msg->instance-1].begin(), accepted_values[msg->instance-1].end());
-        accepted_values[msg->instance-1] = proposed_values;
-        ack_count++;
-        
+        updateProposal();
+        std::cout << "Proposal updated, broadcasting\n";
         broadcastProposal();
+
+        // Check for majority ack (1 or 2 process case)
+        if (ack_count >= nb_nodes/2 && active)
+        {
+          active = false;
+          decide();
+        }
       }
     }
-    return;  
+    break;  
 
   default:
-    return;  
+    break;  
   }
+
+  // If instance has decided and acknowledged proposals from all other nodes, return true
+  return decided && acknowledgements_sent == nb_nodes;
 }
 
-void LatticeAgreement::propose(prop_nb_t instance, std::set<proposal_t> proposal)
+void LatticeAgreementInstance::propose(std::set<proposal_t> proposal)
 {
-  // Lock to ensure a correct reset + proposal
+  // Lock to avoid proposing at the same time as processing a message
   std::lock_guard<std::mutex> lock(la_mutex);
 
-  std::cout << "Proposing (instance " << instance << "): { ";
-  for (const auto& value: proposal)
-  {
-    std::cout << value << " ";
-  }
-  std::cout << "}\n";
-
-  // Reset all attributes
-  active_instance_number = instance;
-  ack_count = 0;
-  nack_count = 0;
-  active_proposal_number = 0;
-  proposed_values = proposal;
-  decided = false;
+  has_proposal = true;
   active = true;
-  
-  // Resize deque if needed
-  if (accepted_values.size() + first_instance_id <= instance)
-  {
-    accepted_values.resize(instance - first_instance_id + 1);
-  }
-  // Accept own proposal
-  accepted_values[instance-1] = std::move(proposal);
-  ack_count++;
-  
+  // Merge proposal with accepted_values to accept or reject its own proposal
+  proposed_values = std::move(proposal);
+  updateProposal();
+
   broadcastProposal();
 }
 
-void LatticeAgreement::waitUntilDecided()
+void LatticeAgreementInstance::waitUntilDecidedOrTerminated()
 {
   std::unique_lock<std::mutex> lock(decision_mutex);
-  decision_cv.wait(lock, [this]() { return decided; });
+  decision_cv.wait(lock, [this]{ return decided || terminated; });
+  std::cout << "LatticeAgreementInstance " << instance_id << " exited wait\n";
+}
+
+void LatticeAgreementInstance::terminate()
+{
+  std::cout << "LatticeAgreementInstance " << instance_id << " terminated\n";
+  terminated = true;
+  decision_cv.notify_all();
 }
 
 // Private methods:
-void LatticeAgreement::broadcastProposal()
+void LatticeAgreementInstance::broadcastProposal()
 {
   // Create message
-  auto msg_ptr = std::make_shared<Message>(MessageType::MES, active_instance_number, active_proposal_number, proposed_values);
+  auto msg_ptr = std::make_shared<Message>(MessageType::MES, instance_id, active_proposal_number, proposed_values);
   parent->broadcast(msg_ptr);
 }
 
-void LatticeAgreement::respond(std::shared_ptr<const Message> msg, std::string sender_ip_and_port, bool acknowledge)
+void LatticeAgreementInstance::respond(std::shared_ptr<const Message> msg, std::string sender_ip_and_port, bool acknowledge)
 {
   // Create response
-  auto response = acknowledge ? msg->toAck() : msg->toNack(accepted_values[msg->instance-1]);
+  auto response = acknowledge ? msg->toAck() : msg->toNack(accepted_values);
   parent->sendTo(std::make_shared<Message>(std::move(response)), sender_ip_and_port);
 }
 
-void LatticeAgreement::decide()
+void LatticeAgreementInstance::decide()
 {
   std::lock_guard<std::mutex> lock(decision_mutex);
   if (decided) return;
+  if (!has_proposal) return;
 
   std::cout << "Decided set { ";
   for (const auto& value: proposed_values)
@@ -155,4 +156,75 @@ void LatticeAgreement::decide()
   parent->logger->logDecision(proposed_values);
 
   decision_cv.notify_one();
+}
+
+void LatticeAgreementInstance::updateProposal()
+{
+  proposed_values.insert(accepted_values.begin(), accepted_values.end());
+  accepted_values = proposed_values;
+  acknowledgements_sent=1;
+  ack_count++;
+}
+
+// Multi-shot Lattice agreement object
+LatticeAgreement::LatticeAgreement(size_t nb_nodes, uint32_t ds, Node *p)
+  : nb_nodes(nb_nodes), distinct_values(ds), parent(p)
+{}
+
+void LatticeAgreement::processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port)
+{
+  std::lock_guard<std::mutex> lock(la_manager_mutex);
+  
+  std::cout << "processing message from " << sender_ip_and_port << ": ";
+  msg.get()->displayMessage();
+
+  tryAddingInstance(msg->instance);
+
+  // Process message and destroy instance if not needed anymore
+  bool destroy_instance = instances[msg->instance]->processMessage(msg, sender_ip_and_port);
+  if (destroy_instance)
+  {
+    instances.erase(msg->instance);
+  }
+}
+
+void LatticeAgreement::propose(prop_nb_t instance_id, std::set<proposal_t> proposal)
+{
+  std::lock_guard<std::mutex> lock(la_manager_mutex);
+
+  std::cout << "Proposing (instance " << instance_id << "): { ";
+  for (const auto& value: proposal)
+  {
+    std::cout << value << " ";
+  }
+  std::cout << "}\n";
+
+  tryAddingInstance(instance_id);
+  // add proposal
+  instances[instance_id]->propose(std::move(proposal));
+}
+
+void LatticeAgreement::waitUntilDecidedOrTerminated(prop_nb_t instance_id)
+{
+  instances[instance_id]->waitUntilDecidedOrTerminated();
+}
+
+void LatticeAgreement::terminate()
+{
+  for (const auto& instance: instances)
+  {
+    instance.second->terminate();
+  }
+}
+
+// Private methods:
+void LatticeAgreement::tryAddingInstance(prop_nb_t instance_id)
+{
+  // Create instance if it does not exist
+  if (instances.find(instance_id) == instances.end())
+  {
+    instances.emplace(instance_id, std::make_unique<LatticeAgreementInstance>(
+      nb_nodes, distinct_values, parent, instance_id
+    ));
+  }
 }

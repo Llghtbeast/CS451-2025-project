@@ -114,6 +114,7 @@ private:
 
   // Primitive implementations
   friend class LatticeAgreement; // Allow instances of LatticeAgreement to access attributes of Node
+  friend class LatticeAgreementInstance;
   LatticeAgreement lattice_agreement;
 
   prop_nb_t next_la_instance_nb = 0;

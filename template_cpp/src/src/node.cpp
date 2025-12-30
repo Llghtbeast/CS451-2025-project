@@ -93,11 +93,18 @@ void Node::terminate()
   // unblock recvfrom if it's blocked
   ::shutdown(node_socket, SHUT_RDWR);
 
+  // terminate lattice agreement if it is blocked
+  lattice_agreement.terminate();
+
   // join threads (wait for loops to exit)
   if (sender_thread.joinable()) sender_thread.join();
+  std::cout << "Sender thread joined" << std::endl;
   if (listener_thread.joinable()) listener_thread.join();
+  std::cout << "Listener thread joined" << std::endl;
   if (logger_thread.joinable()) logger_thread.join();
+  std::cout << "Logger thread joined" << std::endl;
   if (lattice_agreement_processor_thread.joinable()) lattice_agreement_processor_thread.join();
+  std::cout << "lattice_agreement_processor_thread thread joined" << std::endl;
 }
 
 void Node::propose(std::set<proposal_t>&& proposal)
@@ -216,12 +223,12 @@ void Node::processLatticeAgreement()
     if (proposal_queue.empty()) continue;
 
     // Pop the first proposal from queue.
-    auto [instance_nb, proposal] = proposal_queue.pop_front();
+    auto [instance_id, proposal] = proposal_queue.pop_front();
 
     // Propose this proposal to lattice agreement instance
-    lattice_agreement.propose(instance_nb, proposal);
+    lattice_agreement.propose(instance_id, proposal);
 
     // Wait for lattice_agreement instance to decide
-    lattice_agreement.waitUntilDecided();
+    lattice_agreement.waitUntilDecidedOrTerminated(instance_id);
   }
 }
