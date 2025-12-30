@@ -1,8 +1,8 @@
 #include "message.hpp"
 
 // =================== Message implementation =================== 
-Message::Message(MessageType type, prop_nb_t round, const std::set<proposal_t>& proposal_set)
-  : type(type), round(round), proposed_values(proposal_set.begin(), proposal_set.end())
+Message::Message(MessageType type, prop_nb_t instance, prop_nb_t round, const std::set<proposal_t>& proposal_set)
+  : type(type), instance(instance), round(round), proposed_values(proposal_set.begin(), proposal_set.end())
 {}
 
 bool Message::operator==(const Message &other) const
@@ -13,23 +13,24 @@ bool Message::operator==(const Message &other) const
     if (proposed_values[i] != other.proposed_values[i]) return false;
   }
   
-  return (type == other.type) && (round == other.round);
+  return (instance == other.instance) && (type == other.type) && (round == other.round);
 }
 
 Message Message::toAck() const
 {
-  return Message(MessageType::ACK, round, {});
+  return Message(MessageType::ACK, instance, round, {});
 }
 
 Message Message::toNack(std::set<proposal_t>& completed_proposal_set) const
 {
-  return Message(MessageType::NACK, round, completed_proposal_set);
+  return Message(MessageType::NACK, instance, round, completed_proposal_set);
 }
 
 void Message::displayMessage() const
 {
   std::cout << "Message: ";
   std::cout << "type=" << static_cast<int>(type) << ", ";
+  std::cout << "instance=" << static_cast<int>(instance) << ", ";
   std::cout << "round=" << static_cast<int>(round) << ", ";
   std::cout << "proposed_values = {";
   for (const auto& value: proposed_values)
@@ -41,7 +42,7 @@ void Message::displayMessage() const
 
 size_t Message::serializedSize() const
 {
-  return sizeof(type) + sizeof(round) + sizeof(proposal_t) * proposed_values.size();
+  return sizeof(type) + sizeof(instance) + sizeof(round) + sizeof(uint16_t) + sizeof(proposal_t) * proposed_values.size();
 }
 
 void Message::serializeTo(char *buffer, size_t &offset) const
@@ -50,6 +51,11 @@ void Message::serializeTo(char *buffer, size_t &offset) const
   std::memcpy(buffer + offset, &type, sizeof(type));
   offset += sizeof(type);
   
+  // serialize message instance
+  prop_nb_t instance_network = convertToNetwork(instance);
+  std::memcpy(buffer + offset, &instance_network, sizeof(instance_network));
+  offset += sizeof(instance_network);
+
   // serialize message round
   prop_nb_t round_network = convertToNetwork(round);
   std::memcpy(buffer + offset, &round_network, sizeof(round_network));
@@ -74,6 +80,11 @@ Message Message::deserialize(const char *buffer, size_t &offset)
   
   std::memcpy(&msg.type, buffer + offset, sizeof(msg.type));
   offset += sizeof(msg.type);
+  
+  prop_nb_t instance_network;
+  std::memcpy(&instance_network, buffer + offset, sizeof(instance_network));
+  offset += sizeof(instance_network);
+  msg.instance = convertFromNetwork(instance_network);
   
   prop_nb_t round_network;
   std::memcpy(&round_network, buffer + offset, sizeof(round_network));
@@ -180,8 +191,9 @@ void Packet::displayPacket()
   {
     std::cout << "    pkt_seqs: ";
     const auto& data = std::get<1>(payload);
-    for (const auto& pkt : data) {
-      std::cout << pkt << " ";
+    for (size_t i = 0; i < nb_mes; i++)
+    {
+      std::cout << data[i] << " ";
     }
   }
   std::cout << "" << std::endl;

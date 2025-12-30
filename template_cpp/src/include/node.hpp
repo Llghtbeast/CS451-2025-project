@@ -62,7 +62,7 @@ public:
    */
   void terminate();
 
-  void propose(std::set<proposal_t> proposal);
+  void propose(std::set<proposal_t>&& proposal);
 
 private:
   /**
@@ -116,7 +116,8 @@ private:
   friend class LatticeAgreement; // Allow instances of LatticeAgreement to access attributes of Node
   LatticeAgreement lattice_agreement;
 
-  ConcurrentDeque<std::set<proposal_t>> proposal_queue;
+  prop_nb_t next_la_instance_nb = 0;
+  ConcurrentDeque<std::pair<prop_nb_t, std::set<proposal_t>>> proposal_queue;
 
   // Worker threads
   std::thread sender_thread;

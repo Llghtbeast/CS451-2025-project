@@ -13,14 +13,14 @@ static void testPacketSerialization() {
   uint8_t nb_mes = 8;
   std::array<pkt_seq_t, MAX_MESSAGES_PER_PACKET> seqs = {1, 2, 3, 4, 5, 6, 7, 8};
   std::array<std::shared_ptr<const Message>, MAX_MESSAGES_PER_PACKET> msgs = {
-    std::make_shared<Message>(MessageType::MES, 1, std::set<proposal_t>({ 1, 2, 3 })),
-    std::make_shared<Message>(MessageType::MES, 2, std::set<proposal_t>({ 1, 2 })),
-    std::make_shared<Message>(MessageType::ACK, 3, std::set<proposal_t>({})),
-    std::make_shared<Message>(MessageType::NACK, 4, std::set<proposal_t>({ 2, 4, 5 })),
-    std::make_shared<Message>(MessageType::MES, 5, std::set<proposal_t>({ 1, 2, 3, 4, 5})),
-    std::make_shared<Message>(MessageType::NACK, 6, std::set<proposal_t>({ 2})),
-    std::make_shared<Message>(MessageType::ACK, 7, std::set<proposal_t>({})),
-    std::make_shared<Message>(MessageType::ACK, 8, std::set<proposal_t>({}))
+    std::make_shared<Message>(MessageType::MES, 10, 1, std::set<proposal_t>({ 1, 2, 3 })),
+    std::make_shared<Message>(MessageType::MES, 10, 2, std::set<proposal_t>({ 1, 2 })),
+    std::make_shared<Message>(MessageType::ACK, 10, 3, std::set<proposal_t>({})),
+    std::make_shared<Message>(MessageType::NACK, 10, 4, std::set<proposal_t>({ 2, 4, 5 })),
+    std::make_shared<Message>(MessageType::MES, 10, 5, std::set<proposal_t>({ 1, 2, 3, 4, 5})),
+    std::make_shared<Message>(MessageType::NACK, 10, 6, std::set<proposal_t>({ 2})),
+    std::make_shared<Message>(MessageType::ACK, 10, 7, std::set<proposal_t>({})),
+    std::make_shared<Message>(MessageType::ACK, 10, 8, std::set<proposal_t>({}))
   };
   Packet msg(MES, nb_mes, seqs, msgs);
   msg.displayPacket();  

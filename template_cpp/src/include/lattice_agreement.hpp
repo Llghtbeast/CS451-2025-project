@@ -16,11 +16,6 @@ public:
   LatticeAgreement(size_t nb_nodes, uint32_t ds, Node *p);
 
   /**
-   * Reset object for a new round of lattice agreement, maybe not necessary when using multiple slots
-   */
-  void reset();
-
-  /**
    * Process message from other node
    */
   void processMessage(std::shared_ptr<const Message> msg, std::string sender_ip_and_port);
@@ -28,7 +23,7 @@ public:
   /**
    * Propose a proposal
    */
-  void propose(std::set<proposal_t> proposal);
+  void propose(prop_nb_t instance, std::set<proposal_t> proposal);
 
   /**
    * Wait unitl lattice agreement instance has decided (block until decided)
@@ -52,6 +47,8 @@ private:
   void decide();
 
 private:
+  prop_nb_t active_instance_number = 0;
+
   // Proposer
   bool active = false;
   uint32_t ack_count = 0;
@@ -59,16 +56,15 @@ private:
   uint32_t active_proposal_number = 0;
   std::set<proposal_t> proposed_values;
 
+  std::mutex la_mutex;
+
   bool decided = false;
   std::mutex decision_mutex;
   std::condition_variable decision_cv;
 
-  // Are these needed?
-  // ConcurrentMap<uint32_t, std::set<proc_id_t>> acks_received;
-  // ConcurrentMap<uint32_t, std::set<proc_id_t>> nacks_received;
-
   // Acceptor
   std::set<proposal_t> accepted_values;
+  size_t acknowledgements_sent;
 
   size_t nb_nodes;
   uint32_t distinct_values;

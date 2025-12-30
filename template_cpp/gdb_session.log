@@ -1,0 +1,36 @@
+Already logging to gdb_session.log.
+#0  0x000055555555fad0 in std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::_M_mbegin (this=0x0) at /usr/include/c++/13/bits/stl_tree.h:737
+#1  0x000055555555e940 in std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::_M_begin (this=0x0) at /usr/include/c++/13/bits/stl_tree.h:741
+#2  0x0000555555576376 in std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::clear (this=0x0) at /usr/include/c++/13/bits/stl_tree.h:1255
+#3  0x000055555558c97f in std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::_M_move_assign (this=0x0, __x=...) at /usr/include/c++/13/bits/stl_tree.h:1708
+#4  0x000055555558c891 in std::_Rb_tree<unsigned int, unsigned int, std::_Identity<unsigned int>, std::less<unsigned int>, std::allocator<unsigned int> >::operator= (this=0x0, __x=...) at /usr/include/c++/13/bits/stl_tree.h:1744
+#5  0x000055555558c723 in std::set<unsigned int, std::less<unsigned int>, std::allocator<unsigned int> >::operator= (this=0x0) at /usr/include/c++/13/bits/stl_set.h:304
+#6  0x000055555558d4ba in LatticeAgreement::propose (this=0x7fffffffd8a0, instance=1, proposal=std::set with 1 element = {...}) at /home/goldfish/Documents/EPFL/master/DisAlg/CS451-2025-project/template_cpp/src/src/lattice_agreement.cpp:106
+#7  0x000055555556369e in Node::processLatticeAgreement (this=0x7fffffffd800) at /home/goldfish/Documents/EPFL/master/DisAlg/CS451-2025-project/template_cpp/src/src/node.cpp:222
+#8  0x000055555556c3e2 in std::__invoke_impl<void, void (Node::*)(), Node*> (__f=@0x5555555c2720: (void (Node::*)(Node * const)) 0x5555555635d8 <Node::processLatticeAgreement()>, __t=@0x5555555c2718: 0x7fffffffd800) at /usr/include/c++/13/bits/invoke.h:74
+#9  0x000055555556c335 in std::__invoke<void (Node::*)(), Node*> (__fn=@0x5555555c2720: (void (Node::*)(Node * const)) 0x5555555635d8 <Node::processLatticeAgreement()>) at /usr/include/c++/13/bits/invoke.h:96
+#10 0x000055555556c295 in std::thread::_Invoker<std::tuple<void (Node::*)(), Node*> >::_M_invoke<0ul, 1ul> (this=0x5555555c2718) at /usr/include/c++/13/bits/std_thread.h:292
+#11 0x000055555556c24a in std::thread::_Invoker<std::tuple<void (Node::*)(), Node*> >::operator() (this=0x5555555c2718) at /usr/include/c++/13/bits/std_thread.h:299
+#12 0x000055555556c22a in std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (Node::*)(), Node*> > >::_M_run (this=0x5555555c2710) at /usr/include/c++/13/bits/std_thread.h:244
+#13 0x00007ffff7cecdb4 in ?? () from /lib/x86_64-linux-gnu/libstdc++.so.6
+#14 0x00007ffff789caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#15 0x00007ffff7929c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+Warning: 'set logging off', an alias for the command 'set logging enabled', is deprecated.
+Use 'set logging enabled off'.
+
+#0  0x000055555558f22f in __gnu_cxx::__ops::_Iter_less_iter::operator()<std::_Rb_tree_const_iterator<unsigned int>, __gnu_cxx::__normal_iterator<unsigned int const*, std::vector<unsigned int, std::allocator<unsigned int> > > > (this=0x7ffff6fe626f, __it1=non-dereferenceable iterator for associative container, __it2=3) at /usr/include/c++/13/bits/predefined_ops.h:45
+#1  0x000055555558e7a1 in std::__includes<__gnu_cxx::__normal_iterator<unsigned int const*, std::vector<unsigned int, std::allocator<unsigned int> > >, std::_Rb_tree_const_iterator<unsigned int>, __gnu_cxx::__ops::_Iter_less_iter> (__first1=3, __last1=0, __first2=non-dereferenceable iterator for associative container, __last2=0, __comp=...) at /usr/include/c++/13/bits/stl_algo.h:2819
+#2  0x000055555558e0e6 in std::includes<__gnu_cxx::__normal_iterator<unsigned int const*, std::vector<unsigned int, std::allocator<unsigned int> > >, std::_Rb_tree_const_iterator<unsigned int> > (__first1=3, __last1=0, __first2=non-dereferenceable iterator for associative container, __last2=0) at /usr/include/c++/13/bits/stl_algo.h:2867
+#3  0x000055555558d323 in LatticeAgreement::processMessage (this=0x7fffffffd860, msg=std::shared_ptr<const Message> (use count 3, weak count 0) = {...}, sender_ip_and_port="16777343:64042") at /home/goldfish/Documents/EPFL/master/DisAlg/CS451-2025-project/template_cpp/src/src/lattice_agreement.cpp:20
+#4  0x00005555555633d6 in Node::listen (this=0x7fffffffd7c0) at /home/goldfish/Documents/EPFL/master/DisAlg/CS451-2025-project/template_cpp/src/src/node.cpp:194
+#5  0x000055555556c880 in std::__invoke_impl<void, void (Node::*)(), Node*> (__f=@0x5555555c5660: (void (Node::*)(Node * const)) 0x555555563186 <Node::listen()>, __t=@0x5555555c5658: 0x7fffffffd7c0) at /usr/include/c++/13/bits/invoke.h:74
+#6  0x000055555556c7d3 in std::__invoke<void (Node::*)(), Node*> (__fn=@0x5555555c5660: (void (Node::*)(Node * const)) 0x555555563186 <Node::listen()>) at /usr/include/c++/13/bits/invoke.h:96
+#7  0x000055555556c733 in std::thread::_Invoker<std::tuple<void (Node::*)(), Node*> >::_M_invoke<0ul, 1ul> (this=0x5555555c5658) at /usr/include/c++/13/bits/std_thread.h:292
+#8  0x000055555556c6e8 in std::thread::_Invoker<std::tuple<void (Node::*)(), Node*> >::operator() (this=0x5555555c5658) at /usr/include/c++/13/bits/std_thread.h:299
+#9  0x000055555556c6c8 in std::thread::_State_impl<std::thread::_Invoker<std::tuple<void (Node::*)(), Node*> > >::_M_run (this=0x5555555c5650) at /usr/include/c++/13/bits/std_thread.h:244
+#10 0x00007ffff7cecdb4 in ?? () from /lib/x86_64-linux-gnu/libstdc++.so.6
+#11 0x00007ffff789caa4 in start_thread (arg=<optimized out>) at ./nptl/pthread_create.c:447
+#12 0x00007ffff7929c6c in clone3 () at ../sysdeps/unix/sysv/linux/x86_64/clone3.S:78
+Warning: 'set logging off', an alias for the command 'set logging enabled', is deprecated.
+Use 'set logging enabled off'.
+

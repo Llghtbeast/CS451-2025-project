@@ -100,23 +100,19 @@ void Node::terminate()
   if (lattice_agreement_processor_thread.joinable()) lattice_agreement_processor_thread.join();
 }
 
-void Node::propose(std::set<proposal_t> proposal)
+void Node::propose(std::set<proposal_t>&& proposal)
 {
-  std::cout << "Proposing { ";
-  for (const auto& value: proposal)
-  {
-    std::cout << value << " ";
-  }
-  std::cout << "}\n";
-
-  proposal_queue.push_back(proposal);
+  next_la_instance_nb++;
+  proposal_queue.push_back(std::make_pair(next_la_instance_nb, std::move(proposal)));
   std::this_thread::sleep_for(std::chrono::milliseconds(PROPOSAL_TIMEOUT_MS));
 }
 
 // Private methods:
 void Node::broadcast(std::shared_ptr<Message> msg)
 {
-  std::cout << "Broadcast message " << msg.get() << "\n";
+  std::cout << "Broadcast message ";
+  msg.get()->displayMessage();
+  
   // Enqueue message on all perfect links
   for (auto &pair: links)
   {
@@ -127,6 +123,10 @@ void Node::broadcast(std::shared_ptr<Message> msg)
 
 void Node::sendTo(std::shared_ptr<Message> msg, std::string dest)
 {
+  std::cout << "Sending message ";
+  msg.get()->displayMessage();
+  std::cout << " to " << dest << "\n";
+  
   links[dest]->enqueueMessage(msg);
 }
 
@@ -174,8 +174,9 @@ void Node::listen()
     std::string sender_ip_and_port = ipAddressToString(sender_addr);
     // std::cout << "message received from " << sender_ip_and_port << "" << std::endl;
 
+    // Packet::displaySerialized(buffer.data());
     Packet pkt = Packet::deserialize(buffer.data());
-    pkt.displayPacket();
+    // pkt.displayPacket();
   
     // Process message through perfect link -> extract new received messages
     std::array<bool, MAX_MESSAGES_PER_PACKET> received_msgs = links[sender_ip_and_port]->receive(pkt);
@@ -215,15 +216,12 @@ void Node::processLatticeAgreement()
     if (proposal_queue.empty()) continue;
 
     // Pop the first proposal from queue.
-    auto proposal = proposal_queue.pop_front();
+    auto [instance_nb, proposal] = proposal_queue.pop_front();
 
     // Propose this proposal to lattice agreement instance
-    lattice_agreement.propose(proposal);
+    lattice_agreement.propose(instance_nb, proposal);
 
     // Wait for lattice_agreement instance to decide
     lattice_agreement.waitUntilDecided();
-
-    // Reset lattice_agreement instance for next proposal round
-    lattice_agreement.reset();
   }
 }

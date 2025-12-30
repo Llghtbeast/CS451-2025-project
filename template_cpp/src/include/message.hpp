@@ -28,7 +28,7 @@ class Message {
 public:
   // Constructor
   Message() = default;
-  Message(MessageType type, prop_nb_t round, const std::set<proposal_t>& proposal_set);
+  Message(MessageType type, prop_nb_t instance, prop_nb_t round, const std::set<proposal_t>& proposal_set);
   bool operator==(const Message& other) const;
 
   // Response generation
@@ -45,10 +45,11 @@ public:
 
 public:
   MessageType type;
+  prop_nb_t instance;
   prop_nb_t round;
   std::vector<proposal_t> proposed_values;
 
-  static constexpr size_t max_serialized_size = sizeof(type) + sizeof(round) + sizeof(proposal_t) * MAX_PROPOSAL_SET_SIZE;
+  static constexpr size_t max_serialized_size = sizeof(instance) + sizeof(type) + sizeof(round) + sizeof(proposal_t) * MAX_PROPOSAL_SET_SIZE;
 };
 
 // ======================== Link packet class ======================== 
